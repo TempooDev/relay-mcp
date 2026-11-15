@@ -86,6 +86,66 @@ def test_attachment_limit(tmp_path):
         run(relay.delegate("x", files=[str(root / "big.txt")]))
 
 
+def test_save_to_refuses_script_extensions(tmp_path):
+    relay, root = make_relay(tmp_path)
+    for name in ("run.bat", "run.bat.", "run.ps1 "):
+        with pytest.raises(PathNotAllowed):
+            run(relay.delegate("x", save_to=str(root / name)))
+    assert not list(root.iterdir())
+
+
+def test_oversized_attachment_rejected_before_reading(tmp_path):
+    relay, root = make_relay(tmp_path)
+    relay.config.server.max_attachment_chars = 10
+    (root / "big.txt").write_bytes(b"a" * 1000)
+    with pytest.raises(ValueError, match="too large"):
+        run(relay.delegate("x", files=[str(root / "big.txt")]))
+
+
+def test_oversized_audio_rejected(tmp_path):
+    relay, root = make_relay(tmp_path, transcription=True)
+    relay.config.server.max_audio_mb = 0
+    (root / "a.mp3").write_bytes(b"audio")
+    with pytest.raises(ValueError, match="audio limit"):
+        run(relay.transcribe(str(root / "a.mp3")))
+
+
+def test_list_tasks_limit_is_clamped(tmp_path):
+    relay, _ = make_relay(tmp_path)
+    server = create_server(relay)
+
+    async def go():
+        for _ in range(3):
+            await relay.delegate("hi")
+        return await server.call_tool("list_tasks", {"limit": -5})
+
+    assert "completed" in str(run(go()))
+
+
+INIT = {
+    "jsonrpc": "2.0", "id": 1, "method": "initialize",
+    "params": {"protocolVersion": "2025-03-26", "capabilities": {},
+               "clientInfo": {"name": "t", "version": "0"}},
+}  # fmt: skip
+HEADERS = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream"}
+
+
+def test_dns_rebinding_and_foreign_origins_are_rejected(tmp_path):
+    from starlette.testclient import TestClient
+
+    relay, _ = make_relay(tmp_path)
+    app = create_server(relay, host="127.0.0.1", port=8799).streamable_http_app()
+    with TestClient(app, base_url="http://127.0.0.1:8799") as client:
+        ok = client.post("/mcp", json=INIT, headers=HEADERS)
+        evil_host = client.post("/mcp", json=INIT, headers={**HEADERS, "Host": "evil.example"})
+        evil_origin = client.post(
+            "/mcp", json=INIT, headers={**HEADERS, "Origin": "https://evil.example"}
+        )
+    assert ok.status_code == 200
+    assert evil_host.status_code == 421
+    assert evil_origin.status_code == 403
+
+
 def test_failed_task_reports_error(tmp_path):
     relay, _ = make_relay(tmp_path)
     task = run(relay.delegate("please fail"))

@@ -134,9 +134,10 @@ More in [docs/configuration.md](docs/configuration.md): all options, LiteLLM and
 - **Localhost only, no authentication.** Anyone who can reach the port can use it. Do not bind it to a public interface.
 - **Folder allow-list.** Only files under `allowed_roots` (default: your home folder) can be read or written. Narrow it to your project folders.
 - **Protected names** such as `.ssh`, `.aws`, `.env`, `*.pem` and `id_rsa*` are always refused.
-- **No overwriting, no executables.** `save_to` only creates new files and refuses script/binary extensions.
+- **No overwriting, text formats only.** `save_to` only creates new files, and only with an allow-listed extension (`.md`, `.txt`, `.json`, `.csv`...). Scripts and executables cannot be written, including Windows tricks like `run.bat.` or `run.bat::$DATA`.
+- **Browser-proof.** The HTTP endpoint rejects foreign `Host` and `Origin` headers (DNS-rebinding protection), so a web page cannot reach it through your browser.
 - **Privacy follows the tier.** `local` stays on your machine; `light`, `heavy` and `max` send the content to the provider behind them. Tasks and results are stored unencrypted in the SQLite database (auto-deleted after `retention_days`).
-- **CLI backends** run with tools disabled where the CLI allows it (`claude --tools ""`). Check how any CLI you add behaves in non-interactive mode.
+- **CLI backends** run with tools disabled where the CLI allows it (`claude --tools ""`). Agent-style CLIs such as `agy` are full agents: a file you attach could carry instructions aimed at them, and they may be able to call tools, including relay-mcp itself if it is registered globally. Headless mode auto-denies tools that need permission, but check how each CLI you add behaves, and prefer `openai`-type backends for untrusted content.
 
 Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
 

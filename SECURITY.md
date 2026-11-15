@@ -15,4 +15,6 @@ relay-mcp is a **local tool for a single user**. Its security boundary is:
 - Content you delegate leaves your machine whenever the chosen tier points to a cloud provider.
 - Tasks and results are stored unencrypted in a local SQLite file.
 
+Known limits: path checks and file reads are not atomic, so a local process that can swap files or symlinks inside an allowed folder at the right moment could still influence what is read (this needs local access already). Agent-style CLI backends can follow instructions found in attached files.
+
 Reports about bypassing the path policy (traversal, symlink tricks, deny-list gaps), writing outside allowed folders, or exposing the server beyond localhost are in scope.

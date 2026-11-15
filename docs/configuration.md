@@ -24,8 +24,11 @@ The file is validated at startup. Unknown backends in a tier, malformed `backend
 |---|---|---|
 | `allowed_roots` | your home folder | Absolute folders the server may read from and write to. |
 | `deny_patterns` | `[]` | Extra names to refuse, added to the built-in list (`.ssh`, `.aws`, `.gnupg`, `.kube`, `.docker`, `.env`, `.env.*`, `*.pem`, `*.key`, `*.kdbx`, `id_rsa*`, `id_ed25519*`, `.netrc`, `.git-credentials`, `.npmrc`, `.pypirc`, `credentials*`). |
+| `output_extensions` | `.md .txt .json .csv .tsv .html .htm .xml .yaml .yml .log .srt .vtt .rst .tex` | Extensions `save_to` may create. An allow-list: anything else, including no extension, is refused. |
 
-Paths are resolved (symlinks and `..` included) before the check. `save_to` only creates new files and refuses `.exe`, `.dll`, `.bat`, `.cmd`, `.ps1`, `.vbs`, `.lnk`, `.scr`, `.msi` and `.jar`.
+Paths are resolved (symlinks and `..` included) before the check. On Windows, names containing `:` (NTFS alternate data streams) and names ending in a dot or space (which Windows silently strips) are refused. `save_to` only creates new files and never overwrites.
+
+The server also keeps `[server] max_audio_mb` (default `100`) as the largest audio file `transcribe` will read.
 
 ## Backends
 

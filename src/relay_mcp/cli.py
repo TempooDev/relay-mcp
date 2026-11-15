@@ -53,6 +53,13 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as e:
         print(f"Configuration error: {e}", file=sys.stderr)
         return 2
+    bind = args.host or config.server.host
+    if args.transport == "http" and bind not in ("127.0.0.1", "localhost", "::1"):
+        print(
+            f"WARNING: listening on {bind}. relay-mcp has no authentication: anyone who can "
+            "reach this port can read your allowed folders and spend your model quota.",
+            file=sys.stderr,
+        )
     relay = Relay(config)
     server = create_server(relay, host=args.host, port=args.port)
     if args.transport == "http":

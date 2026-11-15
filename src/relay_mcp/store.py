@@ -22,6 +22,10 @@ class TaskStore:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path, isolation_level=None, check_same_thread=False)
+        try:  # prompts and results are stored in clear text: keep the file private (POSIX)
+            path.chmod(0o600)
+        except OSError:
+            pass
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute(

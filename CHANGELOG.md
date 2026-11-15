@@ -9,5 +9,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Tiers with ordered fallbacks.
 - OpenAI-compatible HTTP backends (Ollama, LiteLLM, ...) and CLI backends (`claude -p`, `agy -p`).
 - Persistent SQLite task queue with cancellation and restart recovery.
-- Folder allow-list, protected file names, no-overwrite output policy.
+- Folder allow-list, protected file names, no-overwrite output policy with an extension allow-list.
+- Explicit DNS-rebinding protection on the HTTP transport; warning when binding beyond localhost.
+- Size limits for attachments and audio, and a cap on `list_tasks`.
 - `relay-mcp init` to generate a config; Streamable HTTP and stdio transports.

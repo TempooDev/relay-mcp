@@ -132,7 +132,9 @@ Más detalle en [docs/configuration.md](docs/configuration.md) (en inglés).
 - **Solo localhost y sin autenticación.** Quien alcance el puerto puede usarlo. No lo expongas en una interfaz pública.
 - **Lista de carpetas permitidas.** Solo se leen o escriben archivos bajo `allowed_roots` (por defecto, tu carpeta personal). Redúcela a tus proyectos.
 - **Nombres protegidos** como `.ssh`, `.aws`, `.env`, `*.pem` o `id_rsa*` se rechazan siempre.
-- **Sin sobrescribir ni ejecutables.** `save_to` solo crea archivos nuevos y rechaza extensiones de scripts o binarios.
+- **Sin sobrescribir y solo formatos de texto.** `save_to` solo crea archivos nuevos y únicamente con extensiones permitidas (`.md`, `.txt`, `.json`, `.csv`...). No se pueden escribir scripts ni ejecutables, ni siquiera con trucos de Windows como `run.bat.` o `run.bat::$DATA`.
+- **A prueba de navegador.** El endpoint HTTP rechaza cabeceras `Host` y `Origin` ajenas (protección contra DNS rebinding), así que una web no puede alcanzarlo a través de tu navegador.
+- **Los CLI de tipo agente** (como `agy`) son agentes completos: un archivo adjunto podría contener instrucciones dirigidas a ellos. Prefiere backends de tipo `openai` para contenido no confiable.
 - **La privacidad depende del nivel.** `local` se queda en tu máquina; `light`, `heavy` y `max` envían el contenido al proveedor que haya detrás. Las tareas y resultados se guardan sin cifrar en SQLite (se borran tras `retention_days`).
 
 Para informar de vulnerabilidades, ver [SECURITY.md](SECURITY.md).

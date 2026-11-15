@@ -23,6 +23,10 @@ retention_days = 30      # finished tasks older than this are deleted at startup
 # allowed_roots = ["~/projects", "~/Documents/notes"]
 # Extra file/folder names to refuse on top of the built-in list (.ssh, .env, *.pem, ...):
 # deny_patterns = ["*.sqlite"]
+# Extensions the server may create with save_to. Everything else (.bat, .ps1, .py, no
+# extension...) is refused. Default: .md .txt .json .csv .tsv .html .htm .xml .yaml .yml
+# .log .srt .vtt .rst .tex
+# output_extensions = [".md", ".txt"]
 
 # --- Backends ---------------------------------------------------------------
 

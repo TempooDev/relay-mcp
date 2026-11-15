@@ -6,6 +6,7 @@ import asyncio
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from .backends import Backend, Router, build_backends
 from .config import Config
@@ -32,7 +33,11 @@ class Relay:
         store: TaskStore | None = None,
     ):
         self.config = config
-        self.policy = PathPolicy(config.security.allowed_roots, config.security.deny_patterns)
+        self.policy = PathPolicy(
+            config.security.allowed_roots,
+            config.security.deny_patterns,
+            config.security.output_extensions,
+        )
         self.backends = backends if backends is not None else build_backends(config)
         self.router = Router(self.backends, config.tiers)
         self.store = store or TaskStore(config.server.db)
@@ -49,6 +54,8 @@ class Relay:
             path = self.policy.check(raw)
             if not path.is_file():
                 raise ValueError(f"Not a file: {path}")
+            if path.stat().st_size > limit * 4:  # bytes; refuse before loading into memory
+                raise ValueError(f"{path} is too large to attach (limit {limit} characters)")
             data = path.read_bytes()
             if b"\x00" in data[:4096]:
                 raise ValueError(f"{path} looks binary; only text files can be attached")
@@ -93,6 +100,9 @@ class Relay:
         path = self.policy.check(audio_path)
         if not path.is_file():
             raise ValueError(f"Not a file: {path}")
+        max_mb = self.config.server.max_audio_mb
+        if path.stat().st_size > max_mb * 1024 * 1024:
+            raise ValueError(f"{path.name} is larger than the {max_mb} MB audio limit")
         target = self.policy.check_output(save_to) if save_to else None
         backend, model = self.backends[cfg["backend"]], cfg["model"]
 
@@ -113,11 +123,17 @@ class Relay:
 
 def create_server(relay: Relay, host: str | None = None, port: int | None = None) -> FastMCP:
     srv = relay.config.server
+    host, port = host or srv.host, port or srv.port
+    # Explicit DNS-rebinding protection: a web page must not be able to reach this local,
+    # unauthenticated server through the browser. Do not rely on the SDK default.
+    loopback = host in ("127.0.0.1", "localhost", "::1")
+    security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=loopback,
+        allowed_hosts=[f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"],
+        allowed_origins=[f"http://127.0.0.1:{port}", f"http://localhost:{port}"],
+    )
     mcp = FastMCP(
-        "relay",
-        instructions=INSTRUCTIONS,
-        host=host or srv.host,
-        port=port or srv.port,
+        "relay", instructions=INSTRUCTIONS, host=host, port=port, transport_security=security
     )
 
     @mcp.tool()
@@ -159,6 +175,7 @@ def create_server(relay: Relay, host: str | None = None, port: int | None = None
     @mcp.tool()
     async def list_tasks(limit: int = 20) -> list[dict]:
         """Most recent tasks, newest first (results truncated)."""
+        limit = max(1, min(limit, 200))
         return [relay.tasks.view(i, full=False) for i in relay.store.recent(limit)]
 
     @mcp.tool()

@@ -71,6 +71,14 @@ def test_missing_config_message(tmp_path, monkeypatch):
         find_config()
 
 
+def test_output_extensions_validation_and_default():
+    assert ".md" in parse_config(BASE).security.output_extensions
+    cfg = parse_config({**BASE, "security": {"output_extensions": [".PY"]}})
+    assert cfg.security.output_extensions == [".py"]
+    with pytest.raises(ConfigError, match="output_extensions"):
+        parse_config({**BASE, "security": {"output_extensions": ["md"]}})
+
+
 def test_relative_db_is_next_to_config(tmp_path):
     cfg = parse_config({**BASE, "server": {"db": "t.db"}}, source=tmp_path / "relay.toml")
     assert cfg.server.db == tmp_path / "t.db"

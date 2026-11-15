@@ -8,6 +8,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .security import DEFAULT_OUTPUT_EXTENSIONS
+
 ENV_VAR = "RELAY_MCP_CONFIG"
 CONFIG_NAME = "relay.toml"
 
@@ -48,12 +50,14 @@ class ServerConfig:
     max_attachment_chars: int = 400_000
     retention_days: int = 30
     max_wait_seconds: int = 300
+    max_audio_mb: int = 100
 
 
 @dataclass
 class SecurityConfig:
     allowed_roots: list[Path] = field(default_factory=lambda: [Path.home()])
     deny_patterns: list[str] = field(default_factory=lambda: list(DEFAULT_DENY_PATTERNS))
+    output_extensions: list[str] = field(default_factory=lambda: list(DEFAULT_OUTPUT_EXTENSIONS))
 
 
 @dataclass
@@ -114,6 +118,7 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
         max_attachment_chars=int(srv.get("max_attachment_chars", defaults.max_attachment_chars)),
         retention_days=int(srv.get("retention_days", defaults.retention_days)),
         max_wait_seconds=int(srv.get("max_wait_seconds", defaults.max_wait_seconds)),
+        max_audio_mb=int(srv.get("max_audio_mb", defaults.max_audio_mb)),
     )
     if server.max_concurrent < 1:
         raise ConfigError("[server] max_concurrent must be at least 1")
@@ -124,7 +129,10 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
         if not r.is_absolute():
             raise ConfigError(f"[security] allowed_roots must be absolute paths (got {r})")
     deny = list(DEFAULT_DENY_PATTERNS) + [str(p) for p in sec.get("deny_patterns", [])]
-    security = SecurityConfig(allowed_roots=roots, deny_patterns=deny)
+    extensions = [str(e).lower() for e in sec.get("output_extensions", DEFAULT_OUTPUT_EXTENSIONS)]
+    if not all(e.startswith(".") and len(e) > 1 for e in extensions):
+        raise ConfigError("[security] output_extensions entries must look like '.md'")
+    security = SecurityConfig(allowed_roots=roots, deny_patterns=deny, output_extensions=extensions)
 
     backends = {name: dict(cfg) for name, cfg in data.get("backends", {}).items()}
     if not backends:
