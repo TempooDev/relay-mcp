@@ -1,0 +1,77 @@
+# relay-mcp configuration.
+# Create your own copy with:  relay-mcp init
+#
+# A *backend* is where models run. A *tier* is a named, ordered list of
+# "backend/model" destinations: the first one that answers wins, the rest are
+# fallbacks. Clients ask for a tier ("light", "heavy"...), never for a model, so you
+# can swap models here without touching any client.
+#
+# Backends that are unavailable at runtime (CLI not installed, API key not set) are
+# skipped, so it is safe to keep destinations you do not always have.
+
+[server]
+host = "127.0.0.1"       # keep it on localhost: there is no authentication
+port = 8765
+# db = "tasks.db"        # default: your user data folder (kept out of the repo)
+max_concurrent = 3       # tasks running at the same time
+max_attachment_chars = 400000
+retention_days = 30      # finished tasks older than this are deleted at startup (0 = keep forever)
+
+[security]
+# Folders the server may read from and write to on behalf of a client. Default: your home.
+# Narrow it to the folders you actually work in:
+# allowed_roots = ["~/projects", "~/Documents/notes"]
+# Extra file/folder names to refuse on top of the built-in list (.ssh, .env, *.pem, ...):
+# deny_patterns = ["*.sqlite"]
+
+# --- Backends ---------------------------------------------------------------
+
+# Ollama (local). LiteLLM, vLLM, LM Studio... work the same way: change base_url.
+[backends.ollama]
+base_url = "http://localhost:11434/v1"
+
+# Any OpenAI-compatible cloud API. The key is read from an environment variable.
+# [backends.gemini]
+# base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+# api_key_env = "GEMINI_API_KEY"
+
+# A LiteLLM proxy (one endpoint for many providers).
+# [backends.litellm]
+# base_url = "http://localhost:4000/v1"
+# api_key_env = "LITELLM_API_KEY"
+
+# Claude Code in non-interactive mode, using whichever account `claude` is signed in with.
+# Tools and MCP servers are disabled so it cannot call back into relay-mcp.
+[backends.claude]
+type = "cli"
+command = "claude"
+args = ["-p", "--model", "{model}", "--tools", "", "--strict-mcp-config", "--no-session-persistence"]
+models = ["opus", "sonnet", "haiku"]   # `claude` cannot list models; these are the aliases it accepts
+timeout = 600
+
+# Antigravity CLI (Gemini and others), using its signed-in session. It cannot read the
+# prompt from stdin, so the prompt is passed as an argument (Windows limits its length).
+[backends.agy]
+type = "cli"
+command = "agy"
+args = ["--model", "{model}", "--mode", "plan", "--print-timeout", "300s"]
+list_args = ["models"]    # run `agy models` to see valid names
+prompt_arg = "-p"
+max_arg_chars = 28000
+timeout = 330
+
+# --- Tiers --------------------------------------------------------------------
+# Edit the model names to match what you have installed (see the list_models tool).
+
+[tiers]
+light = ["agy/gemini-3.8-flash-low", "ollama/llama3.2"]
+local = ["ollama/llama3.2"]            # nothing leaves your machine
+heavy = ["claude/sonnet"]
+max = ["claude/opus", "claude/sonnet"]
+
+# --- Transcription (optional) -----------------------------------------------
+# Needs an OpenAI-compatible /audio/transcriptions endpoint, e.g. LiteLLM or
+# faster-whisper-server. Ollama does not provide one.
+# [transcription]
+# backend = "litellm"
+# model = "whisper-1"

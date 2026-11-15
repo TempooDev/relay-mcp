@@ -1,0 +1,76 @@
+import tomllib
+from importlib import resources
+
+import pytest
+
+from relay_mcp.config import ConfigError, find_config, load_config, parse_config
+
+BASE = {
+    "backends": {"a": {"base_url": "http://x/v1"}},
+    "tiers": {"light": ["a/model"]},
+}
+
+
+def example_data():
+    text = resources.files("relay_mcp").joinpath("relay.example.toml").read_text(encoding="utf-8")
+    return tomllib.loads(text)
+
+
+def test_packaged_example_is_valid():
+    cfg = parse_config(example_data())
+    assert {"light", "local", "heavy", "max"} <= set(cfg.tiers)
+
+
+def test_defaults():
+    cfg = parse_config(BASE)
+    assert cfg.server.host == "127.0.0.1"
+    assert cfg.backends["a"]["type"] == "openai"
+    assert cfg.security.allowed_roots  # defaults to the home folder
+
+
+def test_unknown_backend_in_tier():
+    with pytest.raises(ConfigError, match="unknown backend"):
+        parse_config({**BASE, "tiers": {"light": ["nope/model"]}})
+
+
+def test_destination_format():
+    with pytest.raises(ConfigError, match="backend/model"):
+        parse_config({**BASE, "tiers": {"light": ["justamodel"]}})
+
+
+def test_cli_backend_requires_command():
+    with pytest.raises(ConfigError, match="command"):
+        parse_config({**BASE, "backends": {"a": {"type": "cli"}}})
+
+
+def test_transcription_must_use_openai_backend():
+    cli = {"a": {"type": "cli", "command": "x"}}
+    with pytest.raises(ConfigError, match="transcription"):
+        parse_config({**BASE, "backends": cli, "transcription": {"backend": "a", "model": "m"}})
+
+
+def test_relative_roots_rejected():
+    with pytest.raises(ConfigError, match="absolute"):
+        parse_config({**BASE, "security": {"allowed_roots": ["relative/dir"]}})
+
+
+def test_env_var_and_cwd_lookup(tmp_path, monkeypatch):
+    cfg_file = tmp_path / "custom.toml"
+    cfg_file.write_text('[backends.a]\nbase_url="http://x/v1"\n[tiers]\nlight=["a/m"]\n')
+    monkeypatch.setenv("RELAY_MCP_CONFIG", str(cfg_file))
+    assert find_config() == cfg_file
+    assert load_config().source == cfg_file
+
+
+def test_missing_config_message(tmp_path, monkeypatch):
+    monkeypatch.delenv("RELAY_MCP_CONFIG", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    with pytest.raises(ConfigError, match="relay-mcp init"):
+        find_config()
+
+
+def test_relative_db_is_next_to_config(tmp_path):
+    cfg = parse_config({**BASE, "server": {"db": "t.db"}}, source=tmp_path / "relay.toml")
+    assert cfg.server.db == tmp_path / "t.db"

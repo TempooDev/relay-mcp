@@ -1,0 +1,52 @@
+[project]
+name = "relay-mcp"
+version = "0.1.0"
+description = "An MCP server that lets Claude, Gemini and other agents delegate tasks to cheaper or local models through a shared, persistent queue."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+keywords = ["mcp", "model-context-protocol", "llm", "agents", "claude", "gemini", "ollama", "litellm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+    "mcp>=1.9,<2",
+    "httpx>=0.27",
+]
+
+[project.urls]
+Homepage = "https://github.com/OWNER/relay-mcp"
+Issues = "https://github.com/OWNER/relay-mcp/issues"
+
+[project.scripts]
+relay-mcp = "relay_mcp.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/relay_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
