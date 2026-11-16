@@ -17,6 +17,11 @@ Work = Callable[[], Awaitable[Completion | tuple[str, str]]]
 EXCERPT_CHARS = 400
 
 
+def round_cost(cost: float | None) -> float | None:
+    """Sums of binary floats print as 0.009052099999999999: keep micro-dollar precision."""
+    return None if cost is None else round(cost, 6)
+
+
 def usage_fields(completion: Completion) -> dict[str, Any]:
     """The database columns describing what a finished task consumed."""
     everything = completion.usage + completion.wasted
@@ -25,7 +30,7 @@ def usage_fields(completion: Completion) -> dict[str, Any]:
         "output_tokens": completion.usage.output_tokens,
         "cache_tokens": completion.usage.cache_tokens,
         "wasted_tokens": completion.wasted.total,
-        "cost_usd": everything.cost_usd,
+        "cost_usd": round_cost(everything.cost_usd),
         "usage_estimated": int(everything.estimated),
         "attempts": completion.attempts,
     }
@@ -93,7 +98,7 @@ class TaskManager:
                 if isinstance(e, AllFailed):  # the failed attempts may still have cost tokens
                     spent = {
                         "wasted_tokens": e.wasted.total,
-                        "cost_usd": e.wasted.cost_usd,
+                        "cost_usd": round_cost(e.wasted.cost_usd),
                         "usage_estimated": int(e.wasted.estimated),
                         "attempts": e.attempts,
                     }

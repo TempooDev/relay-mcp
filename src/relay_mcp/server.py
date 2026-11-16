@@ -17,7 +17,7 @@ from .projects import agents_dir, expand_include, find_project_root, is_trusted,
 from .security import PathNotAllowed, PathPolicy
 from .store import TaskStore
 from .tasks import TaskManager
-from .viewer import parse_since, usage_rows, usage_totals
+from .viewer import parse_since, tasks_without_usage, usage_rows, usage_totals
 
 INSTRUCTIONS = (
     "Delegate work to cheaper or local models. Pass absolute file paths instead of pasting file "
@@ -342,19 +342,25 @@ class Relay:
             "errors": errors,
         }
 
-    def usage(self, since: str = "24h", by: str = "tier") -> dict[str, Any]:
+    def usage(self, since: str = "24h", by: str = "model") -> dict[str, Any]:
         """Token and cost totals of text tasks, so an agent can check before it delegates."""
-        rows = usage_rows(self.store.db, parse_since(since), by)
+        cutoff = parse_since(since)
+        rows = usage_rows(self.store.db, cutoff, by)
+        missing = tasks_without_usage(self.store.db, cutoff)
+        notes = [
+            "input includes cached tokens; wasted = tokens spent by attempts that failed",
+            "cost_usd is reported only by some backends (claude), at list price",
+            "estimated_tasks counts tasks whose tokens were estimated, not reported",
+        ]
+        if missing:
+            notes.append(f"{missing} earlier task(s) have no usage data (before tracking began)")
         return {
             "since": since,
             "by": by,
             "rows": rows,
             "total": usage_totals(rows),
-            "notes": [
-                "input includes cached tokens; wasted = tokens spent by attempts that failed",
-                "cost_usd is reported only by some backends (claude), at list price",
-                "estimated_tasks counts tasks whose tokens were estimated, not reported",
-            ],
+            "tasks_without_usage": missing,
+            "notes": notes,
         }
 
     def clear_thread(self, thread: str) -> dict[str, Any]:
@@ -481,11 +487,11 @@ def create_server(relay: Relay, host: str | None = None, port: int | None = None
         return relay.list_skills(project)
 
     @mcp.tool()
-    async def get_usage(since: str = "24h", by: str = "tier") -> dict:
+    async def get_usage(since: str = "24h", by: str = "model") -> dict:
         """Tokens and cost spent by delegated tasks, to check before delegating more.
 
         since: how far back, e.g. 24h, 7d, 2w or all.
-        by: group by tier, model, agent or day.
+        by: group by model (default: what each model consumed), tier, agent or day.
         Note: every task through a CLI backend (claude, agy) carries a fixed overhead of several
         thousand tokens, so very small tasks can cost more delegated than done in place.
         """

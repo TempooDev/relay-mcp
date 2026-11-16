@@ -139,8 +139,8 @@ def main(argv: list[str] | None = None) -> int:
     usage.add_argument(
         "--by",
         choices=["tier", "model", "agent", "day"],
-        default="tier",
-        help="group by (default tier)",
+        default="model",
+        help="group by (default model: what each model consumed, whatever tier asked for it)",
     )
     show = sub.add_parser("show", parents=[common], help="show one task in full")
     show.add_argument("id", help="task id, or the start of it")

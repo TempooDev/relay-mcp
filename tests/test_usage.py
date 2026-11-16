@@ -427,3 +427,67 @@ def test_config_validates_cli_output_mode():
 
 def test_json_module_is_not_shadowed():  # guards the `json` import used by the CLI parser
     assert json.loads('{"a": 1}') == {"a": 1}
+
+
+# ------------------------------------------------------- report polish
+
+
+def test_tasks_without_usage_counts_only_finished_text_tasks_in_the_period(tmp_path):
+    store = seed(tmp_path)
+    store.insert("run1", "text", "light", "still going")  # pending: not finished, not counted
+    assert viewer.tasks_without_usage(store.db, None) == 1  # the 'legacy' row
+    assert viewer.tasks_without_usage(store.db, viewer.parse_since("1h")) == 1
+    assert viewer.tasks_without_usage(store.db, datetime.now() + timedelta(days=1)) == 0
+
+
+def test_empty_report_explains_why_instead_of_just_saying_nothing(tmp_path):
+    out = viewer.render_usage([], "model", "7d", PLAIN, missing=3)
+    assert "No usage recorded for the last 7d" in out
+    assert "3 finished task(s)" in out and "before usage tracking was added" in out
+    assert "No tasks in the last 7d yet" in viewer.render_usage([], "model", "7d", PLAIN)
+    assert "No tasks in all time yet" in viewer.render_usage([], "model", "all", PLAIN)
+
+
+def test_report_with_data_mentions_the_tasks_it_could_not_count(tmp_path):
+    seed(tmp_path)
+    out = io.StringIO()
+    viewer.show_usage(tmp_path / "t.db", "7d", "model", out, PLAIN)
+    assert "1 earlier task(s) have no usage data and are not counted" in out.getvalue()
+
+
+def test_old_database_without_usage_columns_gets_a_helpful_error(tmp_path):
+    path = tmp_path / "old.db"
+    db = sqlite3.connect(path)
+    db.execute(
+        "CREATE TABLE tasks (id TEXT PRIMARY KEY, kind TEXT, tier TEXT, status TEXT, "
+        "description TEXT, model TEXT, result TEXT, error TEXT, saved_to TEXT, "
+        "created TEXT, finished TEXT)"
+    )
+    db.commit()
+    db.close()  # opened by the viewer only: nothing has upgraded it
+    with pytest.raises(viewer.ViewerError, match="older relay-mcp"):
+        viewer.show_usage(path, "7d", "model", io.StringIO(), PLAIN)
+
+
+def test_costs_are_rounded_to_micro_dollars():
+    from relay_mcp.backends import Completion
+    from relay_mcp.tasks import round_cost, usage_fields
+
+    assert round_cost(0.1 + 0.2) == 0.3 and round_cost(None) is None
+    done = Completion("t", "a/b", Usage(1, 1, cost_usd=0.1), Usage(0, 0, cost_usd=0.2))
+    assert usage_fields(done)["cost_usd"] == 0.3  # not 0.30000000000000004
+    rows = [{"cost_usd": 0.1, **dict.fromkeys(("tasks", "input_tokens", "output_tokens",
+            "cache_tokens", "wasted_tokens", "estimated_tasks"), 0)} for _ in range(3)]  # fmt: skip
+    assert viewer.usage_totals(rows)["cost_usd"] == 0.3
+
+
+def test_reports_default_to_grouping_by_model(tmp_path, capsys):
+    seed(tmp_path)
+    assert main(["usage", "--db", str(tmp_path / "t.db")]) == 0
+    assert "Usage by model" in capsys.readouterr().out
+    (tmp_path / "r").mkdir()
+    relay, _ = make_relay(tmp_path / "r", backend=Scripted(Reply("x", Usage(10, 1))))
+    run(relay.delegate("hello"))
+    report = relay.usage()
+    assert report["by"] == "model" and report["rows"][0]["key"] == "s/m"
+    assert report["tasks_without_usage"] == 0

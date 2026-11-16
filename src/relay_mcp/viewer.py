@@ -250,20 +250,42 @@ def usage_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "output_tokens": sum(r["output_tokens"] for r in rows),
         "cache_tokens": sum(r["cache_tokens"] for r in rows),
         "wasted_tokens": sum(r["wasted_tokens"] for r in rows),
-        "cost_usd": sum(costs) if costs else None,
+        "cost_usd": round(sum(costs), 6) if costs else None,
         "estimated_tasks": sum(r["estimated_tasks"] for r in rows),
     }
 
 
-def render_usage(rows: list[dict[str, Any]], by: str, period: str, style: Style) -> str:
+def tasks_without_usage(db: sqlite3.Connection, since: datetime | None) -> int:
+    """Finished text tasks with no usage data: they ran before usage tracking existed."""
+    where = (
+        "kind = 'text' AND status IN ('completed', 'failed') "
+        "AND input_tokens IS NULL AND wasted_tokens IS NULL"
+    )
+    args: list[Any] = []
+    if since is not None:
+        where += " AND created >= ?"
+        args.append(since.isoformat(timespec="seconds"))
+    return int(db.execute(f"SELECT COUNT(*) FROM tasks WHERE {where}", args).fetchone()[0])
+
+
+def render_usage(
+    rows: list[dict[str, Any]], by: str, period: str, style: Style, missing: int = 0
+) -> str:
+    scope = "all time" if period == "all" else f"the last {period}"
     if not rows:
-        return f"No usage recorded for the last {period}.\n" if period != "all" else "No usage.\n"
+        if missing:
+            return (
+                f"No usage recorded for {scope}.\n"
+                f"{missing} finished task(s) in that period have no usage data: they ran before "
+                "usage tracking was added. New tasks are recorded automatically.\n"
+            )
+        return f"No tasks in {scope} yet.\n"
     width = min(44, max([len(r["key"]) for r in rows] + [len(by), 5]) + 2)  # name column
     header = (
         f"{by:<{width}}{'tasks':>6}{'input':>12}{'output':>10}{'wasted':>10}{'cost':>11}{'est':>5}"
     )
-    scope = "all time" if period == "all" else f"last {period}"
-    lines = [style.bold(f"Usage by {by} ({scope})"), style.dim(header)]
+    title = "all time" if period == "all" else f"last {period}"
+    lines = [style.bold(f"Usage by {by} ({title})"), style.dim(header)]
 
     def row(label: str, r: dict[str, Any]) -> str:
         cost = f"${r['cost_usd']:.4f}" if r["cost_usd"] is not None else "-"
@@ -275,6 +297,11 @@ def render_usage(rows: list[dict[str, Any]], by: str, period: str, style: Style)
 
     lines += [row(r["key"], r) for r in rows]
     lines += [style.dim("-" * len(header)), style.bold(row("TOTAL", usage_totals(rows)))]
+    if missing:
+        lines += [
+            "",
+            style.dim(f"{missing} earlier task(s) have no usage data and are not counted"),
+        ]
     lines += [
         "",
         style.dim("input includes cached tokens; wasted = tokens spent by attempts that failed"),
@@ -295,7 +322,18 @@ def show_usage(path: Path, since: str, by: str, out: TextIO, style: Style) -> No
         cutoff = parse_since(since)
     except ValueError as e:
         raise ViewerError(str(e)) from e
-    out.write(render_usage(usage_rows(db, cutoff, by), by, since, style))
+    try:
+        rows = usage_rows(db, cutoff, by)
+        missing = tasks_without_usage(db, cutoff)
+    except sqlite3.OperationalError as e:
+        if "no such column" not in str(e):
+            raise
+        raise ViewerError(
+            "This task database was created by an older relay-mcp and has no usage columns yet. "
+            "Start the server once with the current version (it upgrades the database on "
+            "startup), then try again."
+        ) from e
+    out.write(render_usage(rows, by, since, style, missing))
 
 
 def list_tasks(path: Path, limit: int, out: TextIO, style: Style) -> None:
