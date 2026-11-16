@@ -108,7 +108,10 @@ def load_config(explicit: str | os.PathLike[str] | None = None) -> Config:
 
 
 def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
-    base = source.parent if source else Path.cwd()
+    # Relative paths in the file are relative to the file. Make that base absolute now: a
+    # relative `-c relay.toml` would otherwise leave agents/skills/db paths that silently
+    # change meaning with the process's working directory.
+    base = source.absolute().parent if source else Path.cwd()
 
     srv = dict(data.get("server", {}))
     defaults = ServerConfig()

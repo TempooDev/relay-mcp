@@ -108,6 +108,21 @@ def test_trusted_projects_and_skills_dir(tmp_path):
         parse_config({**BASE, "projects": {"trusted": ["relative/repo"]}})
 
 
+def test_paths_stay_absolute_when_the_config_is_given_as_a_relative_path(tmp_path, monkeypatch):
+    (tmp_path / "cfg").mkdir()
+    (tmp_path / "cfg" / "relay.toml").write_text(
+        '[server]\ndb = "tasks.db"\n[backends.a]\nbase_url="http://x/v1"\n[tiers]\nlight=["a/m"]\n',
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path / "cfg")
+    cfg = load_config("relay.toml")  # relative, as typed with `-c relay.toml`
+    monkeypatch.chdir(tmp_path)  # the working directory changes afterwards
+    expected = tmp_path / "cfg"
+    assert cfg.agents_dir == expected / "agents" and cfg.agents_dir.is_absolute()
+    assert cfg.skills_dir == expected / "skills" and cfg.skills_dir.is_absolute()
+    assert cfg.server.db == expected / "tasks.db" and cfg.server.db.is_absolute()
+
+
 def test_store_prompts_defaults_to_off():
     assert parse_config(BASE).server.store_prompts is False
     assert parse_config({**BASE, "server": {"store_prompts": True}}).server.store_prompts is True
