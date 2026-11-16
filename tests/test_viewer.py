@@ -116,6 +116,31 @@ def test_cli_reports_errors_without_traceback(tmp_path, capsys):
     assert "No task database" in capsys.readouterr().err
 
 
+@pytest.mark.parametrize("transport", ["http", "stdio"])
+def test_ctrl_c_stops_the_server_quietly(tmp_path, capsys, monkeypatch, transport):
+    """Stopping a foreground server with Ctrl+C must not print a traceback."""
+    from relay_mcp import server as server_module
+
+    config = tmp_path / "relay.toml"
+    config.write_text(
+        '[server]\ndb = "tasks.db"\n[backends.a]\nbase_url = "http://x/v1"\n'
+        '[tiers]\nlight = ["a/m"]\n',
+        encoding="utf-8",
+    )
+    started = []
+
+    class FakeServer:
+        def run(self, transport):
+            started.append(transport)
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(server_module, "create_server", lambda *args, **kwargs: FakeServer())
+    assert main(["-c", str(config), "--transport", transport]) == 0
+    err = capsys.readouterr().err
+    assert "relay-mcp stopped" in err and "Traceback" not in err
+    assert started == ["streamable-http" if transport == "http" else "stdio"]
+
+
 def test_store_migrates_database_from_earlier_version(tmp_path):
     path = tmp_path / "old.db"
     db = sqlite3.connect(path)

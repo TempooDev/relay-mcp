@@ -176,9 +176,10 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         print("Follow tasks live in another terminal with: relay-mcp watch", file=sys.stderr)
-        server.run(transport="streamable-http")
-    else:
-        server.run(transport="stdio")
+    try:
+        server.run(transport="streamable-http" if args.transport == "http" else "stdio")
+    except KeyboardInterrupt:  # Ctrl+C is the normal way to stop a foreground server
+        print("\nrelay-mcp stopped.", file=sys.stderr)
     return 0
 
 
