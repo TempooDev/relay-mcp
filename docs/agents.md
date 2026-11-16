@@ -48,7 +48,7 @@ my-repo/
     skills/<name>/SKILL.md          skills shared with Claude Code
 ```
 
-Run `relay-mcp init-project` in the repository to create `.agents/relay/agents/` with four starter agents (it never overwrites). Skills use the same `SKILL.md` layout as Antigravity and Claude Code; relay reads **both** `.agents/skills/` and `.claude/skills/`, so one set serves all three tools (on a name clash `.agents` wins). Extra front matter written for other tools, such as `allowed-tools`, is ignored. Claude Code itself does **not** read `.agents/`, which is why relay also looks in `.claude/skills/`.
+Run `relay-mcp init-project` in the repository to create `.agents/relay/agents/` with four starter agents (it never overwrites). Skills use the same `SKILL.md` layout as Antigravity and Claude Code; relay reads **both** `.agents/skills/` and `.claude/skills/`, so one set serves all three tools (on a name clash `.agents` wins). Extra front matter written for other tools, such as `allowed-tools` or nested `compatibility:` blocks, is ignored. Multi-line values work as in YAML: block scalars (`description: >-` with the text on the following indented lines), plain values continued on indented lines, and `- item` lists (also accepted for an agent's `skills` and `include`). Claude Code itself does **not** read `.agents/`, which is why relay also looks in `.claude/skills/`.
 
 ### Telling relay which project you are in
 

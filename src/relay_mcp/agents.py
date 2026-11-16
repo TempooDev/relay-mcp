@@ -88,9 +88,23 @@ def split_front_matter(
     except StopIteration:
         raise AgentError("front matter is not closed with '---'") from None
     meta: dict[str, str] = {}
+    # Each top-level `key: value` owns the indented lines that follow it. Without this, the
+    # continuation of `description: >-` and nested maps (`compatibility:` / `languages:`) would
+    # be read as keys of their own, and a nested `name:` could overwrite the real one.
+    groups: list[tuple[str, str, list[str]]] = []
     for raw in lines[1:end]:
+        if raw[:1] in (" ", "\t"):  # continuation of the previous key
+            if groups:
+                groups[-1][2].append(raw)
+            elif known is not None:
+                raise AgentError(f"front matter line '{raw.strip()}' is indented under no key")
+            continue
         line = raw.strip()
-        if not line or line.startswith("#"):
+        if not line:
+            if groups:  # blank lines belong to a block scalar; harmless anywhere else
+                groups[-1][2].append("")
+            continue
+        if line.startswith("#"):
             continue
         key, sep, value = line.partition(":")
         if not sep:
@@ -100,8 +114,52 @@ def split_front_matter(
         key = key.strip().lower()
         if known is not None and key not in known:
             raise AgentError(f"unknown key '{key}' (allowed: {', '.join(sorted(known))})")
-        meta[key] = _unquote(value)
+        groups.append((key, value, []))
+    for key, inline, continuation in groups:
+        meta[key] = _scalar(inline, continuation)
     return meta, "\n".join(lines[end + 1 :]).strip()
+
+
+_BLOCK_INDICATOR = re.compile(r"^[>|][0-9+-]*$")
+
+
+def _block_scalar(indicator: str, continuation: list[str]) -> str:
+    """The text of a YAML block scalar (`>-`, `|`...): folded joins lines, literal keeps them."""
+    filled = [line for line in continuation if line.strip()]
+    if not filled:
+        return ""
+    indent = min(len(line) - len(line.lstrip(" \t")) for line in filled)
+    body = [line[indent:].rstrip() if line.strip() else "" for line in continuation]
+    if indicator.startswith("|"):
+        return "\n".join(body).strip()
+    paragraphs, current = [], []
+    for line in body:
+        if line:
+            current.append(line)
+        elif current:
+            paragraphs.append(" ".join(current))
+            current = []
+    if current:
+        paragraphs.append(" ".join(current))
+    return "\n".join(paragraphs).strip()
+
+
+def _scalar(inline: str, continuation: list[str]) -> str:
+    """One front matter value as plain text.
+
+    Handles the YAML shapes real skills use: block scalars (`description: >-`), plain values
+    continued on the next lines, and lists (`- a` lines, joined with commas). Anything else
+    nested (maps) comes out as flat text, which is fine for keys relay ignores.
+    """
+    inline = inline.strip()
+    if _BLOCK_INDICATOR.match(inline):
+        return _block_scalar(inline, continuation)
+    lines = [line.strip() for line in continuation if line.strip()]
+    if not lines:
+        return _unquote(inline)
+    if not inline and all(line == "-" or line.startswith("- ") for line in lines):
+        return ", ".join(_unquote(line[1:].strip()) for line in lines if line != "-")
+    return _unquote(" ".join([inline, *lines] if inline else lines))
 
 
 def validate_glob(pattern: str) -> None:

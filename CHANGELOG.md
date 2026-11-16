@@ -13,6 +13,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Explicit DNS-rebinding protection on the HTTP transport; warning when binding beyond localhost.
 - Size limits for attachments and audio, and a cap on `list_tasks`.
 - Token and cost accounting: every task records input, output and cached tokens, cost when reported, attempts and tokens wasted by failed attempts; `relay-mcp usage`, tokens in `tasks`/`watch`/`show`, and a `get_usage` tool. CLI backends read usage from `--output-format json` with `output = "json"`.
+- Front matter reader understands multi-line YAML values (`description: >-`, `|`, indented continuations and `- item` lists) and keeps nested maps from overwriting top-level keys; skills such as `data-architect` or `golang` now list their real description instead of `>-`.
 - Usage reports group by model by default, say how many earlier tasks have no usage data instead of printing an empty report, explain when a database predates usage tracking, and round costs to micro-dollars.
 - Project scope: agents in `<repo>/.agents/relay/agents/`, skills from `.agents/skills/` and `.claude/skills/` (`SKILL.md`), `include` globs to attach project files, `skills:` in agents, `list_skills`, `project` parameter, `--project` flag, `[projects] trusted`, and `relay-mcp init-project`.
 - Agents defined as Markdown files (`run_agent`, `list_agents`), each with a system prompt and a model or tier; edits apply without restarting.
