@@ -12,4 +12,5 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Folder allow-list, protected file names, no-overwrite output policy with an extension allow-list.
 - Explicit DNS-rebinding protection on the HTTP transport; warning when binding beyond localhost.
 - Size limits for attachments and audio, and a cap on `list_tasks`.
+- Task viewer: `relay-mcp tasks`, `show` and `watch` read the queue live and in full; optional `store_prompts` keeps the full prompt.
 - `relay-mcp init` to generate a config; Streamable HTTP and stdio transports.

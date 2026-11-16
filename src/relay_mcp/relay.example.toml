@@ -16,6 +16,8 @@ port = 8765
 max_concurrent = 3       # tasks running at the same time
 max_attachment_chars = 400000
 retention_days = 30      # finished tasks older than this are deleted at startup (0 = keep forever)
+# store_prompts = true   # keep the FULL prompt (attachments included) for `relay-mcp show/watch`.
+#                        # Off by default: it stores your files' contents unencrypted.
 
 [security]
 # Folders the server may read from and write to on behalf of a client. Default: your home.

@@ -8,7 +8,7 @@ from typing import Any
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
-from .backends import Backend, Router, build_backends
+from .backends import Backend, Router, build_backends, flatten
 from .config import Config
 from .security import PathNotAllowed, PathPolicy
 from .store import TaskStore
@@ -83,8 +83,15 @@ class Relay:
         messages.append(
             {"role": "user", "content": f"{attachments}\n\n{prompt}" if attachments else prompt}
         )
+        stored = flatten(messages) if self.config.server.store_prompts else None
         return await self.tasks.submit(
-            "text", tier, prompt, lambda: self.router.chat(tier, messages), target, wait_seconds
+            "text",
+            tier,
+            prompt,
+            lambda: self.router.chat(tier, messages),
+            target,
+            wait_seconds,
+            prompt=stored,
         )
 
     async def transcribe(

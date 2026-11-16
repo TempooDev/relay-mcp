@@ -79,6 +79,11 @@ def test_output_extensions_validation_and_default():
         parse_config({**BASE, "security": {"output_extensions": ["md"]}})
 
 
+def test_store_prompts_defaults_to_off():
+    assert parse_config(BASE).server.store_prompts is False
+    assert parse_config({**BASE, "server": {"store_prompts": True}}).server.store_prompts is True
+
+
 def test_relative_db_is_next_to_config(tmp_path):
     cfg = parse_config({**BASE, "server": {"db": "t.db"}}, source=tmp_path / "relay.toml")
     assert cfg.server.db == tmp_path / "t.db"

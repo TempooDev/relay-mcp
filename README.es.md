@@ -105,6 +105,18 @@ Los agentes suelen resolver solos las tareas pequeñas. Si quieres que siempre d
 
 Estados: `pending`, `running`, `completed`, `failed`, `cancelled`, `interrupted` (el servidor se reinició a mitad de tarea).
 
+### Ver qué hace cada modelo
+
+Tu agente resume lo que vuelve de una tarea delegada, y a veces esconde detalle. Para ver lo real, abre una segunda terminal (o un panel de tmux o [herdr](https://github.com/ogulcancelik/herdr)) y sigue la cola en directo:
+
+```bash
+relay-mcp watch          # anuncia cada tarea y la imprime completa al terminar
+relay-mcp tasks          # lista las tareas recientes
+relay-mcp show 4b6d      # una tarea completa (basta el inicio del id)
+```
+
+El visor lee la base de datos directamente y nunca escribe, así que funciona con el servidor en marcha y también después de pararlo. Por defecto muestra los primeros 200 caracteres de cada prompt. Para guardar el texto **completo** enviado al modelo (prompt de sistema y archivos adjuntos incluidos), pon `store_prompts = true` en `[server]`. Está desactivado por defecto porque guarda sin cifrar el contenido de tus archivos; el cliente MCP nunca lo recibe de vuelta.
+
 ## Configuración
 
 `relay-mcp` busca la configuración en este orden: `--config RUTA`, la variable `RELAY_MCP_CONFIG`, `./relay.toml` y `~/.config/relay-mcp/config.toml` (`%APPDATA%\relay-mcp\config.toml` en Windows). El [ejemplo comentado](src/relay_mcp/relay.example.toml) es la referencia; lo esencial:

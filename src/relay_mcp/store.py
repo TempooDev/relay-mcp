@@ -9,7 +9,7 @@ from typing import Any
 
 COLUMNS = (
     "id", "kind", "tier", "status", "description", "model",
-    "result", "error", "saved_to", "created", "finished",
+    "result", "error", "saved_to", "created", "finished", "prompt",
 )  # fmt: skip
 
 
@@ -31,8 +31,12 @@ class TaskStore:
         self.db.execute(
             """CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY, kind TEXT, tier TEXT, status TEXT, description TEXT,
-                model TEXT, result TEXT, error TEXT, saved_to TEXT, created TEXT, finished TEXT)"""
+                model TEXT, result TEXT, error TEXT, saved_to TEXT, created TEXT, finished TEXT,
+                prompt TEXT)"""
         )
+        columns = {row["name"] for row in self.db.execute("PRAGMA table_info(tasks)")}
+        if "prompt" not in columns:  # database created by an earlier version
+            self.db.execute("ALTER TABLE tasks ADD COLUMN prompt TEXT")
 
     def interrupt_stale(self) -> None:
         """Tasks left running by a previous process can never finish: mark them."""
@@ -48,10 +52,13 @@ class TaskStore:
             cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
             self.db.execute("DELETE FROM tasks WHERE created < ?", (cutoff,))
 
-    def insert(self, task_id: str, kind: str, tier: str, description: str) -> None:
+    def insert(
+        self, task_id: str, kind: str, tier: str, description: str, prompt: str | None = None
+    ) -> None:
         self.db.execute(
-            "INSERT INTO tasks (id, kind, tier, status, description, created) VALUES (?,?,?,?,?,?)",
-            (task_id, kind, tier, "pending", description[:200], now()),
+            "INSERT INTO tasks (id, kind, tier, status, description, created, prompt) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (task_id, kind, tier, "pending", description[:200], now(), prompt),
         )
 
     def update(self, task_id: str, **fields: Any) -> None:

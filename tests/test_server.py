@@ -146,6 +146,23 @@ def test_dns_rebinding_and_foreign_origins_are_rejected(tmp_path):
     assert evil_origin.status_code == 403
 
 
+def test_prompt_is_not_stored_by_default(tmp_path):
+    relay, _ = make_relay(tmp_path)
+    task = run(relay.delegate("a secret prompt"))
+    assert "prompt" not in relay.store.get(task["id"])
+
+
+def test_full_prompt_is_stored_only_when_enabled_and_never_returned(tmp_path):
+    relay, root = make_relay(tmp_path)
+    relay.config.server.store_prompts = True
+    (root / "in.txt").write_text("ATTACHED TEXT")
+    task = run(relay.delegate("the question", files=[str(root / "in.txt")], system="be brief"))
+    stored = relay.store.get(task["id"])["prompt"]
+    assert "the question" in stored and "ATTACHED TEXT" in stored and "be brief" in stored
+    assert "prompt" not in task  # the MCP client never gets it back
+    assert "prompt" not in run(relay.tasks.wait_for(task["id"], 0))
+
+
 def test_failed_task_reports_error(tmp_path):
     relay, _ = make_relay(tmp_path)
     task = run(relay.delegate("please fail"))

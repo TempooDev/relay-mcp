@@ -17,6 +17,7 @@ The file is validated at startup. Unknown backends in a tier, malformed `backend
 | `max_attachment_chars` | `400000` | Total size of files attached to one task. |
 | `retention_days` | `30` | Finished tasks older than this are deleted at startup. `0` keeps everything. |
 | `max_wait_seconds` | `300` | Upper bound for `wait_seconds` on any call. |
+| `store_prompts` | `false` | Keep the full text sent to the model (system prompt and attachments included) so `relay-mcp show` can display it. Stored unencrypted; never returned to MCP clients. Off by default. |
 
 ## `[security]`
 

@@ -107,6 +107,18 @@ Agents often handle small tasks themselves. If you want something always delegat
 
 Task statuses: `pending`, `running`, `completed`, `failed`, `cancelled`, `interrupted` (the server restarted mid-task).
 
+### See what every model is doing
+
+Your agent summarises what comes back from a delegated task, and sometimes hides detail. To see the real thing, open a second terminal (or a pane in tmux or [herdr](https://github.com/ogulcancelik/herdr)) and follow the queue live:
+
+```bash
+relay-mcp watch          # announces each task, then prints it in full when it finishes
+relay-mcp tasks          # list recent tasks
+relay-mcp show 4b6d      # one task in full (the start of the id is enough)
+```
+
+The viewer reads the database directly and never writes, so it works while the server runs and also after it stops. By default it shows the first 200 characters of each prompt. To keep the **full** text sent to the model (system prompt and attached files included), set `store_prompts = true` under `[server]`. That is off by default because it stores your files' contents unencrypted; the MCP client never receives it back.
+
 ## Configuration
 
 `relay-mcp` looks for its config in this order: `--config PATH`, the `RELAY_MCP_CONFIG` environment variable, `./relay.toml`, then `~/.config/relay-mcp/config.toml` (`%APPDATA%\relay-mcp\config.toml` on Windows). The fully commented [example](src/relay_mcp/relay.example.toml) is the reference; the essentials:

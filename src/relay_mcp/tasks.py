@@ -25,16 +25,24 @@ class TaskManager:
         task = self.store.get(task_id)
         if task is None:
             raise ValueError(f"No such task: {task_id}")
+        task.pop("prompt", None)  # stays local: only the viewer shows it, never the MCP client
         result = task.get("result")
         if result and (not full or task.get("saved_to")) and len(result) > EXCERPT_CHARS:
             task["result"] = result[:EXCERPT_CHARS] + "... (excerpt; full text in saved_to)"
         return task
 
     async def submit(
-        self, kind: str, tier: str, description: str, work: Work, save_to: Path | None, wait: int
+        self,
+        kind: str,
+        tier: str,
+        description: str,
+        work: Work,
+        save_to: Path | None,
+        wait: int,
+        prompt: str | None = None,
     ) -> dict[str, Any]:
         task_id = uuid.uuid4().hex[:8]
-        self.store.insert(task_id, kind, tier, description)
+        self.store.insert(task_id, kind, tier, description, prompt)
 
         async def run() -> None:
             try:

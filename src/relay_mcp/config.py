@@ -51,6 +51,7 @@ class ServerConfig:
     retention_days: int = 30
     max_wait_seconds: int = 300
     max_audio_mb: int = 100
+    store_prompts: bool = False
 
 
 @dataclass
@@ -119,6 +120,7 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
         retention_days=int(srv.get("retention_days", defaults.retention_days)),
         max_wait_seconds=int(srv.get("max_wait_seconds", defaults.max_wait_seconds)),
         max_audio_mb=int(srv.get("max_audio_mb", defaults.max_audio_mb)),
+        store_prompts=bool(srv.get("store_prompts", defaults.store_prompts)),
     )
     if server.max_concurrent < 1:
         raise ConfigError("[server] max_concurrent must be at least 1")
