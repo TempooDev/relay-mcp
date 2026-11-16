@@ -94,6 +94,20 @@ def test_agents_dir_defaults_next_to_config_and_can_be_moved(tmp_path):
     assert absolute.agents_dir == tmp_path / "x"
 
 
+def test_trusted_projects_and_skills_dir(tmp_path):
+    src = tmp_path / "relay.toml"
+    cfg = parse_config(BASE, source=src)
+    assert cfg.trusted_projects == [] and cfg.skills_dir == tmp_path / "skills"
+    trusted = str(tmp_path / "repo")
+    cfg = parse_config(
+        {**BASE, "projects": {"trusted": [trusted]}, "skills": {"dir": "my/skills"}}, source=src
+    )
+    assert cfg.trusted_projects == [tmp_path / "repo"]
+    assert cfg.skills_dir == tmp_path / "my" / "skills"
+    with pytest.raises(ConfigError, match="absolute"):
+        parse_config({**BASE, "projects": {"trusted": ["relative/repo"]}})
+
+
 def test_store_prompts_defaults_to_off():
     assert parse_config(BASE).server.store_prompts is False
     assert parse_config({**BASE, "server": {"store_prompts": True}}).server.store_prompts is True

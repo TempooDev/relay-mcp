@@ -97,7 +97,8 @@ Los agentes suelen resolver solos las tareas pequeñas. Si quieres que siempre d
 |---|---|
 | `delegate` | Envía una tarea de texto a un nivel, con archivos adjuntos, prompt de sistema y `save_to` opcionales. Espera hasta `wait_seconds` (45 por defecto) y, si sigue en marcha, devuelve un id. |
 | `run_agent` | Ejecuta un [agente](docs/agents.md) predefinido: un archivo Markdown con prompt de sistema y modelo. Mismas opciones que `delegate`. |
-| `list_agents` | Los agentes disponibles y el modelo de cada uno. |
+| `list_agents` | Los agentes disponibles y el modelo de cada uno; pasa `project` para incluir los de un repositorio. |
+| `list_skills` | Las skills disponibles (instrucciones reutilizables que los agentes pueden activar). |
 | `clear_thread` | Olvida el historial de un hilo de conversación. |
 | `task_status` | Estado y resultado de una tarea; puede esperar a que termine. |
 | `list_tasks` | Tareas recientes, de la más nueva a la más antigua. |
@@ -125,9 +126,17 @@ Eres un explorador de código. Trabaja solo con el material que recibes...
 
 - `context_from` pasa el resultado de tareas anteriores a una nueva, sea cual sea el modelo que las produjo. Tu agente principal no copia el texto.
 - `thread` mantiene una conversación de varios turnos, y un turno posterior puede usar otro modelo.
-- Hay ejemplos para copiar en [`examples/agents`](examples/agents); la guía completa está en [docs/agents.md](docs/agents.md) (en inglés).
+- Hay ejemplos para copiar en [`src/relay_mcp/templates/agents`](src/relay_mcp/templates/agents); la guía completa está en [docs/agents.md](docs/agents.md) (en inglés).
 
-Los agentes de relay solo trabajan con texto: ven lo que les adjuntas y lo que produjeron tareas anteriores, y no pueden leer otros archivos ni ejecutar comandos.
+Los agentes de relay solo trabajan con texto: ven lo que les adjuntas, lo que produjeron tareas anteriores y lo que casan sus globs `include`, y no pueden elegir otros archivos que leer ni ejecutar comandos.
+
+**Dentro de un repositorio.** Ejecuta `relay-mcp init-project` para crear `.agents/relay/agents/` con agentes de partida, y añade un `.mcp.json` para que cada repositorio tenga un relay con sus propios agentes y skills:
+
+```json
+{ "mcpServers": { "relay": { "command": "relay-mcp", "args": ["--transport", "stdio", "--project", "."] } } }
+```
+
+Un agente puede adjuntar archivos del proyecto (`include: src/**/*.py, README.md`) y activar skills (`skills: security`). Las skills usan el mismo formato `SKILL.md` que Antigravity y Claude Code y se leen de `.agents/skills/` y de `.claude/skills/`. Los agentes y skills de un proyecto solo se cargan si el proyecto es de confianza. Detalles en [docs/agents.md](docs/agents.md#projects-agents-skills-and-files-that-live-in-a-repository) (en inglés).
 
 ### Ver qué hace cada modelo
 

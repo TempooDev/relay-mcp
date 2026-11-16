@@ -25,6 +25,18 @@ The file is validated at startup. Unknown backends in a tier, malformed `backend
 |---|---|---|
 | `dir` | `agents` | Folder with the agent `.md` files. Relative paths are resolved next to the config file. See [agents.md](agents.md). |
 
+## `[skills]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `dir` | `skills` | Folder of global skills (`<name>/SKILL.md`). Relative paths are resolved next to the config file. Project skills are read from `.agents/skills/` and `.claude/skills/`. |
+
+## `[projects]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `trusted` | `[]` | Absolute folders whose `.agents/` agents and skills may be loaded when a client passes `project=`. A folder trusts everything below it. A project started with `--project` is trusted without being listed. See [agents.md](agents.md#projects-agents-skills-and-files-that-live-in-a-repository). |
+
 ## `[security]`
 
 | Key | Default | Meaning |

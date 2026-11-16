@@ -24,6 +24,47 @@ def _init(target: Path) -> int:
     return 0
 
 
+MCP_JSON_SNIPPET = """{
+  "mcpServers": {
+    "relay": {
+      "command": "relay-mcp",
+      "args": ["--transport", "stdio", "--project", "."]
+    }
+  }
+}"""
+
+
+def _init_project(target: Path) -> int:
+    """Scaffold `<repo>/.agents/relay/agents` with the starter agents."""
+    if not target.is_dir():
+        print(f"{target} is not a folder.", file=sys.stderr)
+        return 1
+    dest = target / ".agents" / "relay" / "agents"
+    dest.mkdir(parents=True, exist_ok=True)
+    created, kept = [], []
+    for template in resources.files("relay_mcp").joinpath("templates", "agents").iterdir():
+        out = dest / template.name
+        if out.exists():
+            kept.append(template.name)
+            continue
+        out.write_text(template.read_text(encoding="utf-8"), encoding="utf-8")
+        created.append(template.name)
+    print(f"Agents folder: {dest}")
+    for name in created:
+        print(f"  created {name}")
+    for name in kept:
+        print(f"  kept    {name} (already exists)")
+    print(
+        "\nNext steps:\n"
+        "  1. Check the model: lines in the agents match backends you have in relay.toml.\n"
+        "  2. Add this repository to [projects] trusted in relay.toml (shared HTTP server), or\n"
+        "     let a stdio server start with --project, which marks it as trusted:\n\n"
+        + MCP_JSON_SNIPPET
+        + "\n\n(put it in .mcp.json in the repository root)"
+    )
+    return 0
+
+
 def _db_path(args: argparse.Namespace) -> Path:
     """Database to view: --db, else the one in the config, else the default location."""
     if args.db:
@@ -72,10 +113,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--host", help="override [server] host")
     parser.add_argument("--port", type=int, help="override [server] port")
+    parser.add_argument(
+        "--project",
+        help="repository this server works in: its .agents/ agents and skills are used by default "
+        "(starting relay with --project marks that folder as trusted)",
+    )
 
     sub = parser.add_subparsers(dest="command")
     init = sub.add_parser("init", help=f"write an example {CONFIG_NAME} to edit")
     init.add_argument("path", nargs="?", default=CONFIG_NAME, help=f"default: ./{CONFIG_NAME}")
+    init_project = sub.add_parser(
+        "init-project", help="create .agents/relay/agents with starter agents in a repository"
+    )
+    init_project.add_argument("path", nargs="?", default=".", help="repository folder (default: .)")
 
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("-c", "--config", default=argparse.SUPPRESS, help="path to the config file")
@@ -91,6 +141,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "init":
         return _init(Path(args.path))
+    if args.command == "init-project":
+        return _init_project(Path(args.path))
     if args.command in ("tasks", "show", "watch"):
         return _view(args)
 
@@ -108,7 +160,14 @@ def main(argv: list[str] | None = None) -> int:
             "reach this port can read your allowed folders and spend your model quota.",
             file=sys.stderr,
         )
-    relay = Relay(config)
+    try:
+        project = Path(args.project).expanduser().resolve() if args.project else None
+        relay = Relay(config, default_project=project)
+    except (ValueError, PermissionError) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+    if relay.default_project:
+        print(f"Project: {relay.default_project}", file=sys.stderr)
     server = create_server(relay, host=args.host, port=args.port)
     if args.transport == "http":
         print(

@@ -1,6 +1,13 @@
 import pytest
 
-from relay_mcp.agents import AgentError, load_agents, parse_agent, split_front_matter
+from relay_mcp.agents import (
+    AgentError,
+    load_agents,
+    load_skills,
+    parse_agent,
+    parse_skill,
+    split_front_matter,
+)
 
 TIERS = ["light", "heavy"]
 BACKENDS = {"claude", "agy"}
@@ -60,6 +67,47 @@ def test_comments_blank_lines_and_bom_are_tolerated():
 def test_invalid_agents_are_rejected_with_a_reason(text, message):
     with pytest.raises(AgentError, match=message):
         parse(text)
+
+
+def test_include_and_skills_are_parsed_as_lists():
+    agent = parse("---\ninclude: src/**/*.py, README.md\nskills: Security, style\n---\nbody")
+    assert agent.include == ("src/**/*.py", "README.md")
+    assert agent.skills == ("security", "style")
+    assert parse("---\n---\nbody").include == () and parse("---\n---\nbody").skills == ()
+
+
+@pytest.mark.parametrize(
+    "pattern", ["../x", "src/../../x", "/etc/passwd", "C:/Users/x", "~/x", "..\\x"]
+)
+def test_include_patterns_cannot_leave_the_project(pattern):
+    with pytest.raises(AgentError, match="inside the project"):
+        parse(f"---\ninclude: {pattern}\n---\nbody")
+
+
+def test_bad_skill_reference_is_rejected():
+    with pytest.raises(AgentError, match="skill name"):
+        parse("---\nskills: Bad Name!\n---\nbody")
+
+
+def test_skill_parsing_is_lenient_about_unknown_keys_and_missing_front_matter():
+    skill = parse_skill("---\nname: pdf\nallowed-tools:\n  - Read\n---\nbody", "x", None, "project")
+    assert (skill.name, skill.body, skill.scope) == ("pdf", "body", "project")
+    assert parse_skill("only instructions", "folder-name", None, "global").name == "folder-name"
+    with pytest.raises(AgentError, match="no instructions"):
+        parse_skill("---\nname: empty\n---\n", "x", None, "global")
+
+
+def test_load_skills_first_folder_wins_and_reports_errors(tmp_path):
+    first, second = tmp_path / "a", tmp_path / "b"
+    for folder, text in ((first, "from first"), (second, "from second")):
+        (folder / "dup").mkdir(parents=True)
+        (folder / "dup" / "SKILL.md").write_text(text, encoding="utf-8")
+    (second / "broken").mkdir()
+    (second / "broken" / "SKILL.md").write_text("---\nname: Bad Name!\n---\nx", encoding="utf-8")
+    (second / "no-file").mkdir()  # a folder without SKILL.md is ignored
+    skills, errors = load_skills([first, second, tmp_path / "missing"], "project")
+    assert skills["dup"].body == "from first"
+    assert "lowercase" in errors["broken/SKILL.md"] and len(errors) == 1
 
 
 def test_split_front_matter_returns_body():

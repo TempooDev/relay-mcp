@@ -71,6 +71,8 @@ class Config:
     transcription: dict[str, Any] | None = None
     source: Path | None = None
     agents_dir: Path = field(default_factory=lambda: Path.cwd() / "agents")
+    skills_dir: Path = field(default_factory=lambda: Path.cwd() / "skills")
+    trusted_projects: list[Path] = field(default_factory=list)
 
 
 def candidate_paths(explicit: str | os.PathLike[str] | None = None) -> list[Path]:
@@ -181,4 +183,16 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
     if not agents_dir.is_absolute():
         agents_dir = base / agents_dir
 
-    return Config(server, security, backends, tiers, transcription or None, source, agents_dir)
+    skills_dir = Path(data.get("skills", {}).get("dir", "skills")).expanduser()
+    if not skills_dir.is_absolute():
+        skills_dir = base / skills_dir
+
+    trusted = [Path(p).expanduser() for p in data.get("projects", {}).get("trusted", [])]
+    for p in trusted:
+        if not p.is_absolute():
+            raise ConfigError(f"[projects] trusted must be absolute paths (got {p})")
+
+    return Config(
+        server, security, backends, tiers, transcription or None, source,
+        agents_dir, skills_dir, trusted,
+    )  # fmt: skip

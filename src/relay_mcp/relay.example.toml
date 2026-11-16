@@ -21,8 +21,18 @@ retention_days = 30      # finished tasks older than this are deleted at startup
 
 [agents]
 # Markdown agent files (a system prompt plus a model). Relative to this file.
-# Copy the examples from the repository's examples/agents folder here.
+# Copy the examples from the repository's src/relay_mcp/templates/agents folder here.
 # dir = "agents"
+
+[skills]
+# Global skills: <name>/SKILL.md folders. Project skills come from <repo>/.agents/skills and
+# <repo>/.claude/skills.
+# dir = "skills"
+
+[projects]
+# Repositories whose .agents/ agents and skills may be loaded when a client passes `project`.
+# A folder trusts everything below it. Starting relay with --project is trusted by itself.
+# trusted = ["~/projects"]
 
 [security]
 # Folders the server may read from and write to on behalf of a client. Default: your home.

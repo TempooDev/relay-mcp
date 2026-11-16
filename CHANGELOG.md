@@ -12,6 +12,7 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Folder allow-list, protected file names, no-overwrite output policy with an extension allow-list.
 - Explicit DNS-rebinding protection on the HTTP transport; warning when binding beyond localhost.
 - Size limits for attachments and audio, and a cap on `list_tasks`.
+- Project scope: agents in `<repo>/.agents/relay/agents/`, skills from `.agents/skills/` and `.claude/skills/` (`SKILL.md`), `include` globs to attach project files, `skills:` in agents, `list_skills`, `project` parameter, `--project` flag, `[projects] trusted`, and `relay-mcp init-project`.
 - Agents defined as Markdown files (`run_agent`, `list_agents`), each with a system prompt and a model or tier; edits apply without restarting.
 - `context_from` passes earlier task results to a new task across models, and `thread` keeps multi-turn conversations across models (`clear_thread` to forget).
 - `error_patterns` on CLI backends: provider errors printed with exit code 0 count as failures, so fallbacks run and nothing bogus is stored as an answer.

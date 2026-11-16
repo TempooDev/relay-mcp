@@ -99,7 +99,8 @@ Agents often handle small tasks themselves. If you want something always delegat
 |---|---|
 | `delegate` | Send a text task to a tier, with optional file attachments, system prompt, and `save_to`. Waits up to `wait_seconds` (default 45), then returns an id if still running. |
 | `run_agent` | Run a predefined [agent](docs/agents.md): a Markdown file with a system prompt and a model. Same options as `delegate`. |
-| `list_agents` | The available agents and the model each one uses. |
+| `list_agents` | The available agents and the model each one uses; pass `project` to include a repository's own. |
+| `list_skills` | The available skills (reusable instructions agents can opt into). |
 | `clear_thread` | Forget the history of a conversation thread. |
 | `task_status` | Get a task's status and result; can wait for it to finish. |
 | `list_tasks` | Recent tasks, newest first. |
@@ -127,9 +128,17 @@ You are a code explorer. Work only with the material you are given...
 
 - `context_from` passes the result of earlier tasks into a new one, whichever model produced them. Your main agent never copies the text.
 - `thread` keeps a multi-turn conversation going, and a later turn can use a different model.
-- Examples to copy are in [`examples/agents`](examples/agents); the full guide is [docs/agents.md](docs/agents.md).
+- Examples to copy are in [`src/relay_mcp/templates/agents`](src/relay_mcp/templates/agents); the full guide is [docs/agents.md](docs/agents.md).
 
-Relay agents are text-only workers: they see what you attach and what earlier tasks produced, and cannot read other files or run commands.
+Relay agents are text-only workers: they see what you attach, what earlier tasks produced and what their `include` globs match, and cannot choose other files to read or run commands.
+
+**Inside a repository.** Run `relay-mcp init-project` to create `.agents/relay/agents/` with starter agents, and add a `.mcp.json` so each repository gets a relay with its own agents and skills:
+
+```json
+{ "mcpServers": { "relay": { "command": "relay-mcp", "args": ["--transport", "stdio", "--project", "."] } } }
+```
+
+An agent can attach project files (`include: src/**/*.py, README.md`) and opt into skills (`skills: security`). Skills use the same `SKILL.md` layout as Antigravity and Claude Code and are read from both `.agents/skills/` and `.claude/skills/`. A project's agents and skills load only for trusted projects. Details in [docs/agents.md](docs/agents.md#projects-agents-skills-and-files-that-live-in-a-repository).
 
 ### See what every model is doing
 

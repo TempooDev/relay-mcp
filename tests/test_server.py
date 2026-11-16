@@ -38,10 +38,13 @@ def make_relay(tmp_path, **extra):
             "tiers": {"light": ["s/m"]},
             "transcription": {"backend": "s", "model": "w"} if extra.get("transcription") else None,
             "agents": {"dir": str(tmp_path / "agents")},
+            "skills": {"dir": str(tmp_path / "skills")},
+            "projects": {"trusted": [str(p) for p in extra.get("trusted", [])]},
         }
     )
     backend = extra.get("backend") or Stub("s", {})
-    return Relay(cfg, backends={"s": backend}), root
+    relay = Relay(cfg, backends={"s": backend}, default_project=extra.get("project"))
+    return relay, root
 
 
 class Recorder(Backend):
@@ -250,7 +253,7 @@ def test_mcp_tools_registered_and_callable(tmp_path):
     tools, listed = run(go())
     assert tools == {
         "delegate", "transcribe", "task_status", "list_tasks", "cancel_task",
-        "list_tiers", "list_models", "run_agent", "list_agents", "clear_thread",
+        "list_tiers", "list_models", "run_agent", "list_agents", "list_skills", "clear_thread",
     }  # fmt: skip
     assert "light" in listed
 
