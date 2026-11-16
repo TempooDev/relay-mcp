@@ -66,6 +66,7 @@ base_url = "http://localhost:11434/v1"
 [backends.claude]
 type = "cli"
 command = "claude"
+output = "json"           # read tokens and cost from `--output-format json` (see `relay-mcp usage`)
 args = ["-p", "--model", "{model}", "--tools", "", "--strict-mcp-config", "--no-session-persistence"]
 models = ["opus", "sonnet", "haiku"]   # `claude` cannot list models; these are the aliases it accepts
 timeout = 600
@@ -75,6 +76,7 @@ timeout = 600
 [backends.agy]
 type = "cli"
 command = "agy"
+output = "json"           # read token usage from `--output-format json`; agy reports no cost
 args = ["--model", "{model}", "--mode", "plan", "--print-timeout", "300s"]
 list_args = ["models"]    # run `agy models` to see valid names
 # agy prints provider errors as normal text and exits with code 0. Listing them here makes

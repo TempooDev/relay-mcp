@@ -9,6 +9,11 @@ from relay_mcp.backends import BackendError, CliBackend, OpenAIBackend, Router, 
 MSG = [{"role": "user", "content": "hello"}]
 
 
+def _pair(completion):
+    """(text, destination) of a routed call, ignoring its usage."""
+    return completion.text, completion.destination
+
+
 def cli(args, **extra):
     return CliBackend("t", {"type": "cli", "command": sys.executable, "args": args, **extra})
 
@@ -20,12 +25,12 @@ def openai(handler, **cfg):
 
 def test_cli_reads_prompt_from_stdin():
     b = cli(["-c", "import sys;print(sys.stdin.read().upper())"])
-    assert asyncio.run(b.chat("m", MSG)) == "HELLO"
+    assert asyncio.run(b.chat("m", MSG)).text == "HELLO"
 
 
 def test_cli_prompt_argument_and_model_placeholder():
     b = cli(["-c", "import sys;print(sys.argv[1], sys.argv[2])", "{model}"], prompt_arg="--p")
-    assert asyncio.run(b.chat("modelX", MSG)) == "modelX --p=hello"
+    assert asyncio.run(b.chat("modelX", MSG)).text == "modelX --p=hello"
 
 
 def test_cli_argument_limit():
@@ -45,14 +50,14 @@ def test_cli_error_pattern_turns_a_fake_answer_into_a_failure():
     with pytest.raises(BackendError, match="reported an error"):
         asyncio.run(b.chat("m", MSG))
     plain = cli(["-c", script])  # without the pattern it would be accepted as an answer
-    assert "BLOCKED" in asyncio.run(plain.chat("m", MSG))
+    assert "BLOCKED" in asyncio.run(plain.chat("m", MSG)).text
 
 
 def test_error_pattern_makes_the_router_try_the_next_destination():
     blocked = cli(["-c", "print('blocked by filters')"], error_patterns=["blocked"])
     ok = openai(lambda r: httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]}))
     router = Router({"c": blocked, "o": ok}, {"t": ["c/x", "o/y"]})
-    assert asyncio.run(router.chat("t", MSG)) == ("ok", "o/y")
+    assert _pair(asyncio.run(router.chat("t", MSG))) == ("ok", "o/y")
 
 
 def test_cli_not_installed():
@@ -76,7 +81,7 @@ def test_openai_chat_and_auth_header(monkeypatch):
         return httpx.Response(200, json={"choices": [{"message": {"content": "hi"}}]})
 
     b = openai(handler, api_key_env="TEST_KEY")
-    assert asyncio.run(b.chat("m", MSG)) == "hi"
+    assert asyncio.run(b.chat("m", MSG)).text == "hi"
     assert seen["auth"] == "Bearer secret"
     assert b"hello" in seen["body"]
 
@@ -119,7 +124,7 @@ def test_router_chat_to_uses_explicit_destinations_in_order():
     broken = openai(lambda r: httpx.Response(500, text="down"))
     ok = openai(lambda r: httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]}))
     router = Router({"b": broken, "o": ok}, {"t": ["b/x"]})
-    assert asyncio.run(router.chat_to(["b/x", "o/y"], MSG)) == ("ok", "o/y")
+    assert _pair(asyncio.run(router.chat_to(["b/x", "o/y"], MSG))) == ("ok", "o/y")
 
 
 def test_router_falls_back_in_order(monkeypatch):
@@ -131,7 +136,7 @@ def test_router_falls_back_in_order(monkeypatch):
         {"skipped": skipped, "broken": broken, "ok": ok},
         {"t": ["skipped/m", "broken/m", "ok/m2"]},
     )
-    assert asyncio.run(router.chat("t", MSG)) == ("ok", "ok/m2")
+    assert _pair(asyncio.run(router.chat("t", MSG))) == ("ok", "ok/m2")
 
 
 def test_router_reports_every_failure():

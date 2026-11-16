@@ -89,6 +89,8 @@ Runs a command in non-interactive mode and returns its output.
 | `prompt_arg` | If set, the prompt is appended as `<prompt_arg>=<prompt>` instead of being sent through stdin (for tools that cannot read stdin). |
 | `max_arg_chars` | Prompt size limit when `prompt_arg` is used. Default `28000`, safe for Windows. |
 | `timeout` | Seconds before the process is killed. Default `600`. |
+| `output` | `text` (default) or `json`. With `json`, relay appends `--output-format json` and reads the answer, token usage and (for `claude`) cost from it; see `relay-mcp usage`. If the CLI prints something else, it is used as plain text with estimated usage. |
+| `json_args` | Arguments appended in `json` mode. Default `["--output-format", "json"]`. |
 | `error_patterns` | Regular expressions (case-insensitive). If the output matches one, the call counts as a failure and the next destination is tried. For CLIs that print provider errors (content filters, quota) as normal text with exit code 0. |
 | `list_args` | Command that prints available models, one per line (`id<TAB>description`). Used by `list_models`. |
 | `models` | Static model list used by `list_models` when there is no `list_args`. |

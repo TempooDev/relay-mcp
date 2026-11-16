@@ -87,6 +87,8 @@ def _view(args: argparse.Namespace) -> int:
         path = _db_path(args)
         if args.command == "tasks":
             viewer.list_tasks(path, args.limit, sys.stdout, style)
+        elif args.command == "usage":
+            viewer.show_usage(path, args.since, args.by, sys.stdout, style)
         elif args.command == "show":
             viewer.show_task(path, args.id, sys.stdout, style)
         else:
@@ -132,6 +134,14 @@ def main(argv: list[str] | None = None) -> int:
     common.add_argument("--db", help="task database to read (default: the one in the config)")
     tasks = sub.add_parser("tasks", parents=[common], help="list recent tasks")
     tasks.add_argument("-n", "--limit", type=int, default=20, help="how many (default 20)")
+    usage = sub.add_parser("usage", parents=[common], help="token and cost totals")
+    usage.add_argument("--since", default="7d", help="period: 24h, 7d, 2w or all (default 7d)")
+    usage.add_argument(
+        "--by",
+        choices=["tier", "model", "agent", "day"],
+        default="tier",
+        help="group by (default tier)",
+    )
     show = sub.add_parser("show", parents=[common], help="show one task in full")
     show.add_argument("id", help="task id, or the start of it")
     watch = sub.add_parser("watch", parents=[common], help="follow tasks live, in full")
@@ -143,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
         return _init(Path(args.path))
     if args.command == "init-project":
         return _init_project(Path(args.path))
-    if args.command in ("tasks", "show", "watch"):
+    if args.command in ("tasks", "show", "watch", "usage"):
         return _view(args)
 
     from .server import Relay, create_server  # imported late: keeps `--help` and `init` fast

@@ -102,6 +102,7 @@ Agents often handle small tasks themselves. If you want something always delegat
 | `list_agents` | The available agents and the model each one uses; pass `project` to include a repository's own. |
 | `list_skills` | The available skills (reusable instructions agents can opt into). |
 | `clear_thread` | Forget the history of a conversation thread. |
+| `get_usage` | Tokens and cost spent by delegated tasks, grouped by tier, model, agent or day. |
 | `task_status` | Get a task's status and result; can wait for it to finish. |
 | `list_tasks` | Recent tasks, newest first. |
 | `cancel_task` | Cancel a pending or running task. |
@@ -151,6 +152,22 @@ relay-mcp show 4b6d      # one task in full (the start of the id is enough)
 ```
 
 The viewer reads the database directly and never writes, so it works while the server runs and also after it stops. By default it shows the first 200 characters of each prompt. To keep the **full** text sent to the model (system prompt and attached files included), set `store_prompts = true` under `[server]`. That is off by default because it stores your files' contents unencrypted; the MCP client never receives it back.
+
+### Know what it costs
+
+Every task records its tokens, and its cost when the backend reports one. See the totals, or see one task:
+
+```bash
+relay-mcp usage                      # last 7 days, by tier
+relay-mcp usage --since 24h --by model
+relay-mcp show 4b6d                  # includes the task's own usage line
+```
+
+Your agent can check before delegating with the `get_usage` tool. Tokens appear as `in>out` in `relay-mcp tasks` and `watch`, with `~` when they are estimates.
+
+- **Exact when reported.** OpenAI-compatible backends (Ollama, LiteLLM...) report exact tokens. For `claude -p` and `agy -p`, set `output = "json"` on the backend so relay reads them from `--output-format json`; `claude` also reports a cost at list price (what your subscription is charged may differ), `agy` reports none. Without that, relay estimates about 4 characters per token and marks it.
+- **Failed attempts count.** If a destination fails and the next one answers (for example a filtered Gemini call that falls back to Ollama), the tokens the failed attempt consumed are reported as `wasted`.
+- **CLI backends have a fixed overhead.** In a measurement with a trivial prompt, one `claude -p` call processed 3.5k to 7.5k input tokens and one `agy -p` call about 10k, for an answer of a few tokens. For very small tasks, delegating through a CLI can cost more than doing the task in place; it pays off on larger inputs. Backends that call an API directly have no such overhead.
 
 ## Configuration
 

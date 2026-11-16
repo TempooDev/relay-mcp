@@ -1,4 +1,4 @@
-"""Read-only viewer for the task database: `relay-mcp tasks | show | watch`.
+"""Read-only viewer for the task database: `relay-mcp tasks | show | watch | usage`.
 
 It reads the SQLite file directly, so it works from any terminal, in parallel with the
 server, and even when the server is stopped. It never writes.
@@ -7,11 +7,12 @@ server, and even when the server is stopped. It never writes.
 from __future__ import annotations
 
 import os
+import re
 import sqlite3
 import sys
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, TextIO
 
@@ -119,13 +120,45 @@ def route(task: dict[str, Any]) -> str:
     return f"{label} -> {model}" if model else label
 
 
+def compact(n: int) -> str:
+    return f"{n / 1000:.1f}k" if n >= 1000 else str(n)
+
+
+def tokens_text(task: dict[str, Any]) -> str:
+    """`in>out` in a few characters, `~` when the numbers are estimates, `-` when unknown."""
+    if task.get("input_tokens") is None:
+        return "-"
+    mark = "~" if task.get("usage_estimated") else ""
+    return f"{mark}{compact(task['input_tokens'])}>{compact(task.get('output_tokens') or 0)}"
+
+
+def usage_line(task: dict[str, Any]) -> str:
+    """The consumption of one task, in full, for `show`; empty when nothing was recorded."""
+    if task.get("input_tokens") is None and not task.get("wasted_tokens"):
+        return ""
+    parts = []
+    if task.get("input_tokens") is not None:
+        cached = task.get("cache_tokens") or 0
+        cache = f" ({cached:,} cached)" if cached else ""
+        parts.append(f"in {task['input_tokens']:,}{cache}  out {task.get('output_tokens') or 0:,}")
+    if task.get("wasted_tokens"):
+        parts.append(f"wasted {task['wasted_tokens']:,} on failed attempts")
+    if task.get("cost_usd") is not None:
+        parts.append(f"${task['cost_usd']:.4f}")
+    if task.get("attempts"):
+        parts.append(f"{task['attempts']} attempt{'s' if task['attempts'] != 1 else ''}")
+    if task.get("usage_estimated"):
+        parts.append("estimated, not reported by the backend")
+    return "Usage: " + "  |  ".join(parts)
+
+
 def one_line(task: dict[str, Any], style: Style, width: int = 60) -> str:
     desc = " ".join((task.get("description") or "").split())
     if len(desc) > width:
         desc = desc[: width - 3] + "..."
     return (
         f"{style.dim(clock(task))}  {style.bold(task['id'])}  {style.status(task['status'])} "
-        f"{route(task):<42} {duration(task):>7}  {desc}"
+        f"{route(task):<42} {duration(task):>7} {tokens_text(task):>11}  {desc}"
     )
 
 
@@ -141,7 +174,10 @@ def render_full(task: dict[str, Any], style: Style) -> str:
         f"{style.bold(task['id'])}  {style.status(task['status'])} {route(task)}  "
         f"{duration(task)}  {style.dim(task.get('created') or '')}"
     )
-    out = [bar, head, bar]
+    out = [bar, head]
+    if usage := usage_line(task):
+        out.append(style.dim(usage))
+    out.append(bar)
     prompt = task.get("prompt")
     if prompt:
         out += [style.bold("PROMPT"), prompt, ""]
@@ -161,7 +197,105 @@ def render_full(task: dict[str, Any], style: Style) -> str:
     return "\n".join(out) + "\n\n"
 
 
+# ----------------------------------------------------------------------- usage
+
+USAGE_KEYS = {
+    "tier": "tier",
+    "model": "COALESCE(model, '-')",
+    "agent": "COALESCE(agent, '-')",
+    "day": "substr(created, 1, 10)",
+}
+
+
+def parse_since(text: str, now: datetime | None = None) -> datetime | None:
+    """`24h`, `7d`, `2w` -> the moment that long ago; `all` -> None (no limit)."""
+    value = text.strip().lower()
+    if value == "all":
+        return None
+    match = re.fullmatch(r"(\d+)([hdw])", value)
+    if not match:
+        raise ValueError(f"'{text}' is not a period: use something like 24h, 7d, 2w or all")
+    unit = {"h": "hours", "d": "days", "w": "weeks"}[match.group(2)]
+    return (now or datetime.now()) - timedelta(**{unit: int(match.group(1))})
+
+
+def usage_rows(db: sqlite3.Connection, since: datetime | None, by: str) -> list[dict[str, Any]]:
+    """Consumption of text tasks grouped by `tier`, `model`, `agent` or `day`."""
+    if by not in USAGE_KEYS:
+        raise ValueError(f"by must be one of: {', '.join(USAGE_KEYS)}")
+    where = "kind = 'text' AND (input_tokens IS NOT NULL OR wasted_tokens IS NOT NULL)"
+    args: list[Any] = []
+    if since is not None:
+        where += " AND created >= ?"
+        args.append(since.isoformat(timespec="seconds"))
+    rows = db.execute(
+        f"""SELECT {USAGE_KEYS[by]} AS key, COUNT(*) AS tasks,
+                   COALESCE(SUM(input_tokens), 0) AS input_tokens,
+                   COALESCE(SUM(output_tokens), 0) AS output_tokens,
+                   COALESCE(SUM(cache_tokens), 0) AS cache_tokens,
+                   COALESCE(SUM(wasted_tokens), 0) AS wasted_tokens,
+                   SUM(cost_usd) AS cost_usd,
+                   COALESCE(SUM(usage_estimated), 0) AS estimated_tasks
+            FROM tasks WHERE {where} GROUP BY key ORDER BY key""",
+        args,
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def usage_totals(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    costs = [r["cost_usd"] for r in rows if r["cost_usd"] is not None]
+    return {
+        "tasks": sum(r["tasks"] for r in rows),
+        "input_tokens": sum(r["input_tokens"] for r in rows),
+        "output_tokens": sum(r["output_tokens"] for r in rows),
+        "cache_tokens": sum(r["cache_tokens"] for r in rows),
+        "wasted_tokens": sum(r["wasted_tokens"] for r in rows),
+        "cost_usd": sum(costs) if costs else None,
+        "estimated_tasks": sum(r["estimated_tasks"] for r in rows),
+    }
+
+
+def render_usage(rows: list[dict[str, Any]], by: str, period: str, style: Style) -> str:
+    if not rows:
+        return f"No usage recorded for the last {period}.\n" if period != "all" else "No usage.\n"
+    width = min(44, max([len(r["key"]) for r in rows] + [len(by), 5]) + 2)  # name column
+    header = (
+        f"{by:<{width}}{'tasks':>6}{'input':>12}{'output':>10}{'wasted':>10}{'cost':>11}{'est':>5}"
+    )
+    scope = "all time" if period == "all" else f"last {period}"
+    lines = [style.bold(f"Usage by {by} ({scope})"), style.dim(header)]
+
+    def row(label: str, r: dict[str, Any]) -> str:
+        cost = f"${r['cost_usd']:.4f}" if r["cost_usd"] is not None else "-"
+        return (
+            f"{label[: width - 1]:<{width}}{r['tasks']:>6}{r['input_tokens']:>12,}"
+            f"{r['output_tokens']:>10,}"
+            f"{r['wasted_tokens']:>10,}{cost:>11}{r['estimated_tasks']:>5}"
+        )
+
+    lines += [row(r["key"], r) for r in rows]
+    lines += [style.dim("-" * len(header)), style.bold(row("TOTAL", usage_totals(rows)))]
+    lines += [
+        "",
+        style.dim("input includes cached tokens; wasted = tokens spent by attempts that failed"),
+        style.dim(
+            "cost: only for backends that report it (claude), at list price; - = not reported"
+        ),
+        style.dim("est: tasks whose tokens were estimated (about 4 characters per token)"),
+    ]
+    return "\n".join(lines) + "\n"
+
+
 # -------------------------------------------------------------------- commands
+
+
+def show_usage(path: Path, since: str, by: str, out: TextIO, style: Style) -> None:
+    db = connect(path)
+    try:
+        cutoff = parse_since(since)
+    except ValueError as e:
+        raise ViewerError(str(e)) from e
+    out.write(render_usage(usage_rows(db, cutoff, by), by, since, style))
 
 
 def list_tasks(path: Path, limit: int, out: TextIO, style: Style) -> None:

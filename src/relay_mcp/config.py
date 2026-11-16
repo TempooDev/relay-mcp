@@ -153,6 +153,8 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
         required = "base_url" if kind == "openai" else "command"
         if required not in cfg:
             raise ConfigError(f"[backends.{name}] requires '{required}'")
+        if cfg.get("output", "text") not in ("text", "json"):
+            raise ConfigError(f"[backends.{name}] output must be 'text' or 'json'")
         for pattern in cfg.get("error_patterns", []):
             try:
                 re.compile(pattern)

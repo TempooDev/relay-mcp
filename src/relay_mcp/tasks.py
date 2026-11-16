@@ -8,10 +8,27 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
+from .backends import AllFailed, Completion
 from .store import TaskStore, now
 
-Work = Callable[[], Awaitable[tuple[str, str]]]  # returns (text, "backend/model")
+# Returns a Completion (text, destination and usage), or just (text, "backend/model") when
+# there is no token usage to record (audio transcription).
+Work = Callable[[], Awaitable[Completion | tuple[str, str]]]
 EXCERPT_CHARS = 400
+
+
+def usage_fields(completion: Completion) -> dict[str, Any]:
+    """The database columns describing what a finished task consumed."""
+    everything = completion.usage + completion.wasted
+    return {
+        "input_tokens": completion.usage.input_tokens,
+        "output_tokens": completion.usage.output_tokens,
+        "cache_tokens": completion.usage.cache_tokens,
+        "wasted_tokens": completion.wasted.total,
+        "cost_usd": everything.cost_usd,
+        "usage_estimated": int(everything.estimated),
+        "attempts": completion.attempts,
+    }
 
 
 class TaskManager:
@@ -50,7 +67,11 @@ class TaskManager:
             try:
                 async with self._slots:
                     self.store.update(task_id, status="running")
-                    text, model = await work()
+                    outcome = await work()
+                if isinstance(outcome, Completion):
+                    text, model, usage = outcome.text, outcome.destination, usage_fields(outcome)
+                else:
+                    (text, model), usage = outcome, {}
                 if save_to:
                     save_to.parent.mkdir(parents=True, exist_ok=True)
                     with save_to.open("x", encoding="utf-8") as f:  # never overwrite
@@ -62,13 +83,26 @@ class TaskManager:
                     model=model,
                     saved_to=str(save_to) if save_to else None,
                     finished=now(),
+                    **usage,
                 )
             except asyncio.CancelledError:
                 self.store.update(task_id, status="cancelled", finished=now())
                 raise
             except Exception as e:  # reported to the client as the task's state
+                spent = {}
+                if isinstance(e, AllFailed):  # the failed attempts may still have cost tokens
+                    spent = {
+                        "wasted_tokens": e.wasted.total,
+                        "cost_usd": e.wasted.cost_usd,
+                        "usage_estimated": int(e.wasted.estimated),
+                        "attempts": e.attempts,
+                    }
                 self.store.update(
-                    task_id, status="failed", error=f"{type(e).__name__}: {e}", finished=now()
+                    task_id,
+                    status="failed",
+                    error=f"{type(e).__name__}: {e}",
+                    finished=now(),
+                    **spent,
                 )
             finally:
                 self._running.pop(task_id, None)

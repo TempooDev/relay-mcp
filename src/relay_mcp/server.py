@@ -11,12 +11,13 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .agents import Agent, Skill, load_agents, load_skills
-from .backends import Backend, Router, build_backends, flatten
+from .backends import Backend, Completion, Router, build_backends, flatten
 from .config import Config
 from .projects import agents_dir, expand_include, find_project_root, is_trusted, skill_dirs
 from .security import PathNotAllowed, PathPolicy
 from .store import TaskStore
 from .tasks import TaskManager
+from .viewer import parse_since, usage_rows, usage_totals
 
 INSTRUCTIONS = (
     "Delegate work to cheaper or local models. Pass absolute file paths instead of pasting file "
@@ -226,14 +227,14 @@ class Relay:
         messages.append({"role": "user", "content": body})
         stored = flatten(messages) if self.config.server.store_prompts else None
 
-        async def work() -> tuple[str, str]:
+        async def work() -> Completion:
             if destinations:
-                text, model = await self.router.chat_to(destinations, messages)
+                completion = await self.router.chat_to(destinations, messages)
             else:
-                text, model = await self.router.chat(tier or "", messages)
+                completion = await self.router.chat(tier or "", messages)
             if thread:  # only the instruction is kept, never attachments or context
-                self.store.append_turns(thread, prompt, text)
-            return text, model
+                self.store.append_turns(thread, prompt, completion.text)
+            return completion
 
         return await self.tasks.submit(
             "text",
@@ -339,6 +340,21 @@ class Relay:
                 for s in skills.values()
             ],
             "errors": errors,
+        }
+
+    def usage(self, since: str = "24h", by: str = "tier") -> dict[str, Any]:
+        """Token and cost totals of text tasks, so an agent can check before it delegates."""
+        rows = usage_rows(self.store.db, parse_since(since), by)
+        return {
+            "since": since,
+            "by": by,
+            "rows": rows,
+            "total": usage_totals(rows),
+            "notes": [
+                "input includes cached tokens; wasted = tokens spent by attempts that failed",
+                "cost_usd is reported only by some backends (claude), at list price",
+                "estimated_tasks counts tasks whose tokens were estimated, not reported",
+            ],
         }
 
     def clear_thread(self, thread: str) -> dict[str, Any]:
@@ -463,6 +479,17 @@ def create_server(relay: Relay, host: str | None = None, port: int | None = None
         project: absolute path of the repository to include its skills.
         """
         return relay.list_skills(project)
+
+    @mcp.tool()
+    async def get_usage(since: str = "24h", by: str = "tier") -> dict:
+        """Tokens and cost spent by delegated tasks, to check before delegating more.
+
+        since: how far back, e.g. 24h, 7d, 2w or all.
+        by: group by tier, model, agent or day.
+        Note: every task through a CLI backend (claude, agy) carries a fixed overhead of several
+        thousand tokens, so very small tasks can cost more delegated than done in place.
+        """
+        return relay.usage(since, by)
 
     @mcp.tool()
     async def clear_thread(thread: str) -> dict:

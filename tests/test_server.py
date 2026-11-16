@@ -254,6 +254,7 @@ def test_mcp_tools_registered_and_callable(tmp_path):
     assert tools == {
         "delegate", "transcribe", "task_status", "list_tasks", "cancel_task",
         "list_tiers", "list_models", "run_agent", "list_agents", "list_skills", "clear_thread",
+        "get_usage",
     }  # fmt: skip
     assert "light" in listed
 

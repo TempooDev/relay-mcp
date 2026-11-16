@@ -7,12 +7,17 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+# Columns added after the first version: databases created earlier get them via ALTER TABLE.
+ADDED_COLUMNS = {
+    "prompt": "TEXT", "agent": "TEXT", "thread": "TEXT",
+    "input_tokens": "INTEGER", "output_tokens": "INTEGER", "cache_tokens": "INTEGER",
+    "wasted_tokens": "INTEGER", "cost_usd": "REAL", "usage_estimated": "INTEGER",
+    "attempts": "INTEGER",
+}  # fmt: skip
 COLUMNS = (
     "id", "kind", "tier", "status", "description", "model",
-    "result", "error", "saved_to", "created", "finished", "prompt", "agent", "thread",
+    "result", "error", "saved_to", "created", "finished", *ADDED_COLUMNS,
 )  # fmt: skip
-# Columns added after 0.1.0 started: databases created earlier get them via ALTER TABLE.
-ADDED_COLUMNS = ("prompt", "agent", "thread")
 
 
 def now() -> str:
@@ -34,12 +39,14 @@ class TaskStore:
             """CREATE TABLE IF NOT EXISTS tasks (
                 id TEXT PRIMARY KEY, kind TEXT, tier TEXT, status TEXT, description TEXT,
                 model TEXT, result TEXT, error TEXT, saved_to TEXT, created TEXT, finished TEXT,
-                prompt TEXT, agent TEXT, thread TEXT)"""
+                prompt TEXT, agent TEXT, thread TEXT, input_tokens INTEGER, output_tokens INTEGER,
+                cache_tokens INTEGER, wasted_tokens INTEGER, cost_usd REAL,
+                usage_estimated INTEGER, attempts INTEGER)"""
         )
         existing = {row["name"] for row in self.db.execute("PRAGMA table_info(tasks)")}
-        for column in ADDED_COLUMNS:
+        for column, kind in ADDED_COLUMNS.items():
             if column not in existing:  # database created by an earlier version
-                self.db.execute(f"ALTER TABLE tasks ADD COLUMN {column} TEXT")
+                self.db.execute(f"ALTER TABLE tasks ADD COLUMN {column} {kind}")
         self.db.execute(
             """CREATE TABLE IF NOT EXISTS thread_turns (
                 id INTEGER PRIMARY KEY AUTOINCREMENT, thread TEXT NOT NULL,

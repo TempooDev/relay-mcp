@@ -100,6 +100,7 @@ Los agentes suelen resolver solos las tareas pequeñas. Si quieres que siempre d
 | `list_agents` | Los agentes disponibles y el modelo de cada uno; pasa `project` para incluir los de un repositorio. |
 | `list_skills` | Las skills disponibles (instrucciones reutilizables que los agentes pueden activar). |
 | `clear_thread` | Olvida el historial de un hilo de conversación. |
+| `get_usage` | Tokens y coste de las tareas delegadas, agrupados por nivel, modelo, agente o día. |
 | `task_status` | Estado y resultado de una tarea; puede esperar a que termine. |
 | `list_tasks` | Tareas recientes, de la más nueva a la más antigua. |
 | `cancel_task` | Cancela una tarea pendiente o en curso. |
@@ -149,6 +150,22 @@ relay-mcp show 4b6d      # una tarea completa (basta el inicio del id)
 ```
 
 El visor lee la base de datos directamente y nunca escribe, así que funciona con el servidor en marcha y también después de pararlo. Por defecto muestra los primeros 200 caracteres de cada prompt. Para guardar el texto **completo** enviado al modelo (prompt de sistema y archivos adjuntos incluidos), pon `store_prompts = true` en `[server]`. Está desactivado por defecto porque guarda sin cifrar el contenido de tus archivos; el cliente MCP nunca lo recibe de vuelta.
+
+### Saber cuánto cuesta
+
+Cada tarea registra sus tokens y, si el backend lo informa, su coste. Mira los totales o una sola tarea:
+
+```bash
+relay-mcp usage                      # últimos 7 días, por nivel
+relay-mcp usage --since 24h --by model
+relay-mcp show 4b6d                  # incluye la línea de consumo de la tarea
+```
+
+Tu agente puede consultarlo antes de delegar con la herramienta `get_usage`. Los tokens salen como `entrada>salida` en `relay-mcp tasks` y `watch`, con `~` cuando son estimados.
+
+- **Exacto cuando se informa.** Los backends compatibles con OpenAI (Ollama, LiteLLM...) dan tokens exactos. Para `claude -p` y `agy -p`, pon `output = "json"` en el backend y relay los lee de `--output-format json`; `claude` informa además de un coste a precio de lista (lo que cobre tu suscripción puede diferir) y `agy` no informa ninguno. Sin eso, relay estima unos 4 caracteres por token y lo marca.
+- **Los intentos fallidos cuentan.** Si un destino falla y responde el siguiente (por ejemplo, una llamada a Gemini filtrada que cae a Ollama), los tokens que gastó el intento fallido se informan como `wasted`.
+- **Los backends CLI tienen un coste fijo.** En una medición con un prompt trivial, una llamada a `claude -p` procesó entre 3,5k y 7,5k tokens de entrada, y una a `agy -p`, unos 10k, para una respuesta de unos pocos tokens. Con tareas muy pequeñas, delegar por un CLI puede costar más que hacerlas en el sitio; compensa con entradas grandes. Los backends que llaman directamente a una API no tienen ese coste.
 
 ## Configuración
 
