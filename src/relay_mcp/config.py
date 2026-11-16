@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -69,6 +70,7 @@ class Config:
     tiers: dict[str, list[str]]
     transcription: dict[str, Any] | None = None
     source: Path | None = None
+    agents_dir: Path = field(default_factory=lambda: Path.cwd() / "agents")
 
 
 def candidate_paths(explicit: str | os.PathLike[str] | None = None) -> list[Path]:
@@ -146,6 +148,13 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
         required = "base_url" if kind == "openai" else "command"
         if required not in cfg:
             raise ConfigError(f"[backends.{name}] requires '{required}'")
+        for pattern in cfg.get("error_patterns", []):
+            try:
+                re.compile(pattern)
+            except re.error as e:
+                raise ConfigError(
+                    f"[backends.{name}] error_patterns: bad regex {pattern!r}: {e}"
+                ) from e
 
     tiers = {name: list(dests) for name, dests in data.get("tiers", {}).items()}
     if not tiers:
@@ -168,4 +177,8 @@ def parse_config(data: dict[str, Any], source: Path | None = None) -> Config:
         if not transcription.get("model"):
             raise ConfigError("[transcription] requires 'model'")
 
-    return Config(server, security, backends, tiers, transcription or None, source)
+    agents_dir = Path(data.get("agents", {}).get("dir", "agents")).expanduser()
+    if not agents_dir.is_absolute():
+        agents_dir = base / agents_dir
+
+    return Config(server, security, backends, tiers, transcription or None, source, agents_dir)

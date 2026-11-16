@@ -98,6 +98,9 @@ Agents often handle small tasks themselves. If you want something always delegat
 | Tool | What it does |
 |---|---|
 | `delegate` | Send a text task to a tier, with optional file attachments, system prompt, and `save_to`. Waits up to `wait_seconds` (default 45), then returns an id if still running. |
+| `run_agent` | Run a predefined [agent](docs/agents.md): a Markdown file with a system prompt and a model. Same options as `delegate`. |
+| `list_agents` | The available agents and the model each one uses. |
+| `clear_thread` | Forget the history of a conversation thread. |
 | `task_status` | Get a task's status and result; can wait for it to finish. |
 | `list_tasks` | Recent tasks, newest first. |
 | `cancel_task` | Cancel a pending or running task. |
@@ -106,6 +109,27 @@ Agents often handle small tasks themselves. If you want something always delegat
 | `transcribe` | Transcribe an audio file (needs a `[transcription]` section). |
 
 Task statuses: `pending`, `running`, `completed`, `failed`, `cancelled`, `interrupted` (the server restarted mid-task).
+
+### Agents, shared context and threads
+
+Define agents as Markdown files, pair each with a model, and let them build on each other's work, even across providers:
+
+```markdown
+<!-- agents/explorer.md -->
+---
+description: Maps the files you attach and reports what is where.
+model: claude/haiku
+---
+You are a code explorer. Work only with the material you are given...
+```
+
+> *"Run the explorer on `src/`, then the researcher with `context_from` the explorer's task, and keep going in the thread `review-1`."*
+
+- `context_from` passes the result of earlier tasks into a new one, whichever model produced them. Your main agent never copies the text.
+- `thread` keeps a multi-turn conversation going, and a later turn can use a different model.
+- Examples to copy are in [`examples/agents`](examples/agents); the full guide is [docs/agents.md](docs/agents.md).
+
+Relay agents are text-only workers: they see what you attach and what earlier tasks produced, and cannot read other files or run commands.
 
 ### See what every model is doing
 

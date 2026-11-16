@@ -19,6 +19,11 @@ retention_days = 30      # finished tasks older than this are deleted at startup
 # store_prompts = true   # keep the FULL prompt (attachments included) for `relay-mcp show/watch`.
 #                        # Off by default: it stores your files' contents unencrypted.
 
+[agents]
+# Markdown agent files (a system prompt plus a model). Relative to this file.
+# Copy the examples from the repository's examples/agents folder here.
+# dir = "agents"
+
 [security]
 # Folders the server may read from and write to on behalf of a client. Default: your home.
 # Narrow it to the folders you actually work in:
@@ -62,6 +67,10 @@ type = "cli"
 command = "agy"
 args = ["--model", "{model}", "--mode", "plan", "--print-timeout", "300s"]
 list_args = ["models"]    # run `agy models` to see valid names
+# agy prints provider errors as normal text and exits with code 0. Listing them here makes
+# relay treat them as failures, so the next destination is tried and no error is stored as
+# an answer.
+error_patterns = ["blocked by Gemini's filters"]
 prompt_arg = "-p"
 max_arg_chars = 28000
 timeout = 330

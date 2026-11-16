@@ -19,6 +19,12 @@ The file is validated at startup. Unknown backends in a tier, malformed `backend
 | `max_wait_seconds` | `300` | Upper bound for `wait_seconds` on any call. |
 | `store_prompts` | `false` | Keep the full text sent to the model (system prompt and attachments included) so `relay-mcp show` can display it. Stored unencrypted; never returned to MCP clients. Off by default. |
 
+## `[agents]`
+
+| Key | Default | Meaning |
+|---|---|---|
+| `dir` | `agents` | Folder with the agent `.md` files. Relative paths are resolved next to the config file. See [agents.md](agents.md). |
+
 ## `[security]`
 
 | Key | Default | Meaning |
@@ -71,6 +77,7 @@ Runs a command in non-interactive mode and returns its output.
 | `prompt_arg` | If set, the prompt is appended as `<prompt_arg>=<prompt>` instead of being sent through stdin (for tools that cannot read stdin). |
 | `max_arg_chars` | Prompt size limit when `prompt_arg` is used. Default `28000`, safe for Windows. |
 | `timeout` | Seconds before the process is killed. Default `600`. |
+| `error_patterns` | Regular expressions (case-insensitive). If the output matches one, the call counts as a failure and the next destination is tried. For CLIs that print provider errors (content filters, quota) as normal text with exit code 0. |
 | `list_args` | Command that prints available models, one per line (`id<TAB>description`). Used by `list_models`. |
 | `models` | Static model list used by `list_models` when there is no `list_args`. |
 

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import shutil
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -25,8 +27,18 @@ class Unavailable(BackendError):
 
 
 def flatten(messages: Messages) -> str:
-    """Collapse chat messages into a single prompt for command-line backends."""
-    return "\n\n".join(m["content"] for m in messages)
+    """Collapse chat messages into a single prompt for command-line backends.
+
+    A single-turn prompt is passed through untouched; once there is history, turns are labelled
+    so the model can tell who said what.
+    """
+    if not any(m["role"] == "assistant" for m in messages):
+        return "\n\n".join(m["content"] for m in messages)
+    labels = {"user": "User", "assistant": "Assistant"}
+    return "\n\n".join(
+        m["content"] if m["role"] == "system" else f"{labels[m['role']]}: {m['content']}"
+        for m in messages
+    )
 
 
 class Backend(ABC):
@@ -154,6 +166,10 @@ class CliBackend(Backend):
         text = out.decode("utf-8", "replace").strip()
         if not text:
             raise BackendError(f"empty output: {err.decode('utf-8', 'replace')[:300].strip()}")
+        # Some CLIs print provider errors (filters, quota...) and still exit with code 0.
+        for pattern in self.cfg.get("error_patterns", []):
+            if re.search(pattern, text, re.IGNORECASE):
+                raise BackendError(f"the CLI reported an error instead of an answer: {text[:200]}")
         return text
 
     async def list_models(self) -> dict[str, Any]:
@@ -195,9 +211,13 @@ class Router:
         self.tiers = tiers
 
     async def chat(self, tier: str, messages: Messages) -> tuple[str, str]:
+        """Like `chat_to`, with the destinations of a configured tier."""
+        return await self.chat_to(self.tiers[tier], messages)
+
+    async def chat_to(self, destinations: Sequence[str], messages: Messages) -> tuple[str, str]:
         """Return (text, 'backend/model') from the first destination that answers."""
         failures = []
-        for dest in self.tiers[tier]:
+        for dest in destinations:
             name, _, model = dest.partition("/")
             try:
                 return await self.backends[name].chat(model, messages), dest

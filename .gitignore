@@ -10,6 +10,7 @@ build/
 
 # Local configuration and data: never commit these
 relay.toml
+/agents/
 *.db
 *.db-wal
 *.db-shm

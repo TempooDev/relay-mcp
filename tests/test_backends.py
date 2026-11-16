@@ -39,6 +39,22 @@ def test_cli_nonzero_exit():
         asyncio.run(cli(["-c", "import sys;sys.exit(3)"]).chat("m", MSG))
 
 
+def test_cli_error_pattern_turns_a_fake_answer_into_a_failure():
+    script = "print('This request was BLOCKED by the filters.')"
+    b = cli(["-c", script], error_patterns=["blocked by the filters"])  # case-insensitive
+    with pytest.raises(BackendError, match="reported an error"):
+        asyncio.run(b.chat("m", MSG))
+    plain = cli(["-c", script])  # without the pattern it would be accepted as an answer
+    assert "BLOCKED" in asyncio.run(plain.chat("m", MSG))
+
+
+def test_error_pattern_makes_the_router_try_the_next_destination():
+    blocked = cli(["-c", "print('blocked by filters')"], error_patterns=["blocked"])
+    ok = openai(lambda r: httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]}))
+    router = Router({"c": blocked, "o": ok}, {"t": ["c/x", "o/y"]})
+    assert asyncio.run(router.chat("t", MSG)) == ("ok", "o/y")
+
+
 def test_cli_not_installed():
     b = CliBackend("t", {"type": "cli", "command": "definitely-not-a-real-binary-xyz"})
     with pytest.raises(Unavailable):
@@ -82,6 +98,28 @@ def test_openai_http_error():
 def test_openai_list_models():
     b = openai(lambda r: httpx.Response(200, json={"data": [{"id": "z"}, {"id": "a"}]}))
     assert asyncio.run(b.list_models())["models"] == ["a", "z"]
+
+
+def test_flatten_is_plain_for_one_turn_and_labelled_with_history():
+    from relay_mcp.backends import flatten
+
+    assert (
+        flatten([{"role": "system", "content": "S"}, {"role": "user", "content": "U"}]) == "S\n\nU"
+    )
+    history = [
+        {"role": "system", "content": "S"},
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+        {"role": "user", "content": "q2"},
+    ]
+    assert flatten(history) == "S\n\nUser: q1\n\nAssistant: a1\n\nUser: q2"
+
+
+def test_router_chat_to_uses_explicit_destinations_in_order():
+    broken = openai(lambda r: httpx.Response(500, text="down"))
+    ok = openai(lambda r: httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]}))
+    router = Router({"b": broken, "o": ok}, {"t": ["b/x"]})
+    assert asyncio.run(router.chat_to(["b/x", "o/y"], MSG)) == ("ok", "o/y")
 
 
 def test_router_falls_back_in_order(monkeypatch):

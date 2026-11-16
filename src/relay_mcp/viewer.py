@@ -111,8 +111,12 @@ def clock(task: dict[str, Any]) -> str:
 
 
 def route(task: dict[str, Any]) -> str:
-    tier, model = task.get("tier") or "-", task.get("model")
-    return f"{tier} -> {model}" if model else tier
+    tier, agent = task.get("tier") or "-", task.get("agent")
+    label = f"{agent}@{tier}" if agent and tier != "-" else (agent or tier)
+    if task.get("thread"):
+        label += f" #{task['thread']}"
+    model = task.get("model")
+    return f"{label} -> {model}" if model else label
 
 
 def one_line(task: dict[str, Any], style: Style, width: int = 60) -> str:

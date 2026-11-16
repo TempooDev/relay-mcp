@@ -40,9 +40,11 @@ class TaskManager:
         save_to: Path | None,
         wait: int,
         prompt: str | None = None,
+        agent: str | None = None,
+        thread: str | None = None,
     ) -> dict[str, Any]:
         task_id = uuid.uuid4().hex[:8]
-        self.store.insert(task_id, kind, tier, description, prompt)
+        self.store.insert(task_id, kind, tier, description, prompt, agent, thread)
 
         async def run() -> None:
             try:

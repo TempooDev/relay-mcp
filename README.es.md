@@ -96,6 +96,9 @@ Los agentes suelen resolver solos las tareas pequeñas. Si quieres que siempre d
 | Herramienta | Qué hace |
 |---|---|
 | `delegate` | Envía una tarea de texto a un nivel, con archivos adjuntos, prompt de sistema y `save_to` opcionales. Espera hasta `wait_seconds` (45 por defecto) y, si sigue en marcha, devuelve un id. |
+| `run_agent` | Ejecuta un [agente](docs/agents.md) predefinido: un archivo Markdown con prompt de sistema y modelo. Mismas opciones que `delegate`. |
+| `list_agents` | Los agentes disponibles y el modelo de cada uno. |
+| `clear_thread` | Olvida el historial de un hilo de conversación. |
 | `task_status` | Estado y resultado de una tarea; puede esperar a que termine. |
 | `list_tasks` | Tareas recientes, de la más nueva a la más antigua. |
 | `cancel_task` | Cancela una tarea pendiente o en curso. |
@@ -104,6 +107,27 @@ Los agentes suelen resolver solos las tareas pequeñas. Si quieres que siempre d
 | `transcribe` | Transcribe un archivo de audio (requiere la sección `[transcription]`). |
 
 Estados: `pending`, `running`, `completed`, `failed`, `cancelled`, `interrupted` (el servidor se reinició a mitad de tarea).
+
+### Agentes, contexto compartido e hilos
+
+Define agentes como archivos Markdown, asigna un modelo a cada uno y deja que construyan sobre el trabajo de los demás, incluso entre proveedores distintos:
+
+```markdown
+<!-- agents/explorer.md -->
+---
+description: Mapea los archivos que le adjuntes e informa de qué hay dónde.
+model: claude/haiku
+---
+Eres un explorador de código. Trabaja solo con el material que recibes...
+```
+
+> *"Ejecuta el explorer sobre `src/`, luego el researcher con `context_from` la tarea del explorer, y sigue en el hilo `review-1`."*
+
+- `context_from` pasa el resultado de tareas anteriores a una nueva, sea cual sea el modelo que las produjo. Tu agente principal no copia el texto.
+- `thread` mantiene una conversación de varios turnos, y un turno posterior puede usar otro modelo.
+- Hay ejemplos para copiar en [`examples/agents`](examples/agents); la guía completa está en [docs/agents.md](docs/agents.md) (en inglés).
+
+Los agentes de relay solo trabajan con texto: ven lo que les adjuntas y lo que produjeron tareas anteriores, y no pueden leer otros archivos ni ejecutar comandos.
 
 ### Ver qué hace cada modelo
 

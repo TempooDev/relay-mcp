@@ -43,6 +43,12 @@ def test_cli_backend_requires_command():
         parse_config({**BASE, "backends": {"a": {"type": "cli"}}})
 
 
+def test_bad_error_pattern_regex_is_rejected():
+    cli = {"a": {"type": "cli", "command": "x", "error_patterns": ["(unclosed"]}}
+    with pytest.raises(ConfigError, match="bad regex"):
+        parse_config({**BASE, "backends": cli})
+
+
 def test_transcription_must_use_openai_backend():
     cli = {"a": {"type": "cli", "command": "x"}}
     with pytest.raises(ConfigError, match="transcription"):
@@ -77,6 +83,15 @@ def test_output_extensions_validation_and_default():
     assert cfg.security.output_extensions == [".py"]
     with pytest.raises(ConfigError, match="output_extensions"):
         parse_config({**BASE, "security": {"output_extensions": ["md"]}})
+
+
+def test_agents_dir_defaults_next_to_config_and_can_be_moved(tmp_path):
+    src = tmp_path / "relay.toml"
+    assert parse_config(BASE, source=src).agents_dir == tmp_path / "agents"
+    custom = parse_config({**BASE, "agents": {"dir": "team/agents"}}, source=src)
+    assert custom.agents_dir == tmp_path / "team" / "agents"
+    absolute = parse_config({**BASE, "agents": {"dir": str(tmp_path / "x")}}, source=src)
+    assert absolute.agents_dir == tmp_path / "x"
 
 
 def test_store_prompts_defaults_to_off():

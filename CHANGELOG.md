@@ -12,5 +12,8 @@ All notable changes are documented here. Format based on [Keep a Changelog](http
 - Folder allow-list, protected file names, no-overwrite output policy with an extension allow-list.
 - Explicit DNS-rebinding protection on the HTTP transport; warning when binding beyond localhost.
 - Size limits for attachments and audio, and a cap on `list_tasks`.
+- Agents defined as Markdown files (`run_agent`, `list_agents`), each with a system prompt and a model or tier; edits apply without restarting.
+- `context_from` passes earlier task results to a new task across models, and `thread` keeps multi-turn conversations across models (`clear_thread` to forget).
+- `error_patterns` on CLI backends: provider errors printed with exit code 0 count as failures, so fallbacks run and nothing bogus is stored as an answer.
 - Task viewer: `relay-mcp tasks`, `show` and `watch` read the queue live and in full; optional `store_prompts` keeps the full prompt.
 - `relay-mcp init` to generate a config; Streamable HTTP and stdio transports.

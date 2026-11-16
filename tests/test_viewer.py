@@ -127,5 +127,29 @@ def test_store_migrates_database_from_earlier_version(tmp_path):
     db.commit()
     db.close()
     store = TaskStore(path)
-    store.insert("abc12345", "text", "light", "d", prompt="p")
-    assert store.get("abc12345")["prompt"] == "p"
+    store.insert("abc12345", "text", "light", "d", prompt="p", agent="explorer", thread="t1")
+    task = store.get("abc12345")
+    assert (task["prompt"], task["agent"], task["thread"]) == ("p", "explorer", "t1")
+    store.append_turns("t1", "q", "a")  # the thread table is created on upgrade too
+    assert [m["role"] for m in store.thread_messages("t1")] == ["user", "assistant"]
+
+
+def test_store_find_by_prefix(tmp_path):
+    store = TaskStore(tmp_path / "t.db")
+    store.insert("abcd1111", "text", "light", "one")
+    store.insert("abce2222", "text", "light", "two")
+    assert store.find("abcd")["id"] == "abcd1111"
+    assert store.find("abcd1111")["id"] == "abcd1111"
+    with pytest.raises(ValueError, match="more than one"):
+        store.find("abc")
+    with pytest.raises(ValueError, match="No such task"):
+        store.find("zzz")
+    with pytest.raises(ValueError, match="No such task"):
+        store.find("")
+
+
+def test_viewer_route_shows_agent_tier_and_thread():
+    task = {"tier": "light", "agent": "explorer", "thread": "t1", "model": "claude/haiku"}
+    assert viewer.route(task) == "explorer@light #t1 -> claude/haiku"
+    assert viewer.route({"tier": "-", "agent": "x"}) == "x"
+    assert viewer.route({"tier": "heavy"}) == "heavy"
