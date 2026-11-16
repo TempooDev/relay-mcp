@@ -5,7 +5,7 @@ Thanks for helping. Bug reports, backend recipes and small focused pull requests
 ## Setup
 
 ```bash
-git clone https://github.com/OWNER/relay-mcp
+git clone https://github.com/TempooDev/relay-mcp
 cd relay-mcp
 uv sync
 ```

@@ -38,7 +38,7 @@ Gemini CLI  ──┘   (one server, SQLite)   ├─► Claude Sonnet          
 ## Quick start
 
 ```bash
-git clone https://github.com/OWNER/relay-mcp
+git clone https://github.com/TempooDev/relay-mcp
 cd relay-mcp
 uv sync
 uv run relay-mcp init        # writes ./relay.toml
